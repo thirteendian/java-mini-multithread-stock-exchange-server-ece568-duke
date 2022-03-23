@@ -8,4 +8,4 @@
  */
 
 rootProject.name = 'multi-project'
-include('client', 'server', 'common')
+include('client', 'server')
