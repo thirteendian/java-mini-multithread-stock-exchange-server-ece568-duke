@@ -95,4 +95,24 @@ public class PostgreJDBC {
         this.executeStatement(enumQuery);
         this.executeStatement(tableQuery);
     }
+
+    /**
+     * create an account, return true upon success, false otherwise
+     * @param accountId new account ID
+     * @param balance new balance 
+     * @return true upon success, false otherwise
+     */
+    public boolean tryCreateAccount(int accountId, double balance){
+        try{
+            String query = 
+                "INSERT INTO ACCOUNT(ACCOUNT_NUMBER, BALANCE) " + 
+                "VALUES (" + accountId + ", " + Double.toString(balance) + ");";
+            this.executeStatement(query);
+        }
+        catch(SQLException e){
+            e.printStackTrace();
+            return false;
+        }
+        return true;
+    }
 }
