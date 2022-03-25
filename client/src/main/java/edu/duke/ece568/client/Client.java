@@ -26,5 +26,15 @@ public class Client{
 
     public static void main(String[] args) {
 
+        //Connect
+        try{
+            Client myClient = new Client("127.0.0.1");
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        //Send Message
+
+
+
     }
 }
