@@ -37,6 +37,7 @@ public class PostgreJDBC {
         errorCounter += this.createAccountTable() ? 0:1;
         errorCounter += this.createPositionTable() ? 0:1;
         errorCounter += this.createOrderTable() ? 0:1;
+        errorCounter += this.createArchiveTable() ? 0:1;
 
         return errorCounter > 0 ? false: true;
     }
@@ -127,6 +128,26 @@ public class PostgreJDBC {
         errorCounter += this.executeUpdateStatement(tableQuery) ? 0 : 1;
 
         return errorCounter > 0 ? false: true;
+    }
+
+    protected boolean createArchiveTable(){
+        String query = 
+            "CREATE TABLE IF NOT EXISTS ARCHIVE(" +
+                "ARCHIVE_ID SERIAL PRIMARY KEY," + 
+                "ORDER_ID INT NOT NULL," + 
+                "SYMBOL VARCHAR (255) NOT NULL," + 
+                "AMOUNT FLOAT NOT NULL CHECK (AMOUNT <> 0), " + 
+                "LIMIT_PRICE FLOAT NOT NULL CHECK (LIMIT_PRICE > 0)," + 
+                "ISSUE_TIME TIMESTAMP NOT NULL," + 
+
+                "CONSTRAINT FK_ORDER_ID " + 
+                    "FOREIGN KEY (ORDER_ID) " + 
+                    "REFERENCES STOCK_ORDER(ORDER_ID) " + 
+                    "ON UPDATE CASCADE " + 
+                    "ON DELETE SET NULL " + 
+            ")";
+        
+        return this.executeUpdateStatement(query);
     }
 
     /**
