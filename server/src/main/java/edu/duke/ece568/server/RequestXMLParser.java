@@ -39,7 +39,6 @@ class RequestXMLParser {
             e.printStackTrace();
         }
     }
-
     private void parseCreate(){
     if(this.doc.getDocumentElement().getNodeName() == "create"){
 
