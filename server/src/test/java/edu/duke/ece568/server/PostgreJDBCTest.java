@@ -9,7 +9,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.util.ArrayList;
 
 import org.junit.jupiter.api.Test;
 
@@ -20,7 +19,7 @@ public class PostgreJDBCTest {
     }
 
     private void cleanAllTables(PostgreJDBC jdbc){
-        String queryCleanAllTables = "DELETE FROM STOCK_ORDER; DELETE FROM POSITION; DELETE FROM ACCOUNT;";
+        String queryCleanAllTables = "DELETE FROM ARCHIVE; DELETE FROM STOCK_ORDER; DELETE FROM POSITION; DELETE FROM ACCOUNT;";
         assertTrue(jdbc.executeUpdateStatement(queryCleanAllTables));
     }
 
@@ -44,7 +43,7 @@ public class PostgreJDBCTest {
     public void test_createTablesIfNotExist() throws ClassNotFoundException, SQLException{
         PostgreJDBC jdbc = this.helper_generateValidJdbc();
         
-        String queryDropAllTables = "DROP TABLE IF EXISTS ACCOUNT, POSITION, STOCK_ORDER;";
+        String queryDropAllTables = "DROP TABLE IF EXISTS ACCOUNT, POSITION, STOCK_ORDER, ARCHIVE;";
         String queryDropAllTypes = "DROP TYPE IF EXISTS STATUS;";
 
         assertTrue(jdbc.executeUpdateStatement(queryDropAllTables));
