@@ -8,50 +8,45 @@ import java.util.ArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+
 class Server {
-    private final int portNum;
     private final ServerSocket serversocket;
     private ExecutorService service;
+    //    private ArrayList<Socket> clientSocketList;
+    public final static int THREAD_COUNT = 32;
+    public final static int PORT_NUM = 12345;
 
-    private ArrayList<Socket> clientSocketList;
-
+    /**
+     * Server Constructor
+     * @throws IOException
+     */
     public Server() throws IOException {
-        this.portNum = 12345;
-        this.serversocket = new ServerSocket(this.portNum);
-        this.service = Executors.newFixedThreadPool(32);
-        this.clientSocketList = new ArrayList<>();
-
+        this.serversocket = new ServerSocket(PORT_NUM);
+        this.service = Executors.newFixedThreadPool(THREAD_COUNT);
     }
 
-    public void acceptClient() throws IOException {
-        this.clientSocketList.add(this.serversocket.accept());
-    }
-
-    public void sendMsg(int playerID, String msg) throws IOException {
-        OutputStream out = clientSocketList.get(playerID - 1).getOutputStream();
-        var writer = new OutputStreamWriter(out, StandardCharsets.UTF_8);
-        writer.write(msg + "\n");
-        writer.flush();
-    }
-
-    public String recvMsg(int playerID) throws IOException {
-        InputStream in = clientSocketList.get(playerID - 1).getInputStream();
-        var reader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
-        return reader.readLine();
+    /**
+     * accept incomming connections
+     * @return  clientSocket connected with client
+     * @throws IOException
+     */
+    public Socket acceptConnection() throws IOException {
+        Socket clientSocket = this.serversocket.accept();
+        return clientSocket;
     }
 
 
-    public boolean init() {
-        try {
-            this.acceptClient();
-        } catch (IOException e) {
-            e.printStackTrace();
-            return false;
+    public static void main(String[] args) throws IOException {
+
+        Server myServer = new Server();
+
+        while (true) {
+            // Accept Connections
+            Socket clientSocket = myServer.acceptConnection();
+            Runnable task = new ServerRunnable(clientSocket);
+            //Once connected, send thread
+            myServer.service.submit(task);
         }
-        return true;
-    }
-
-    public void sendthread(){
 
 
     }
