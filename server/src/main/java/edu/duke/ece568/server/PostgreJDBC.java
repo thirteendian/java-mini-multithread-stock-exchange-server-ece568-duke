@@ -70,8 +70,7 @@ public class PostgreJDBC {
     protected boolean createAccountTable(){
         String query = 
             "CREATE TABLE IF NOT EXISTS ACCOUNT(" +
-                "ACCOUNT_ID SERIAL PRIMARY KEY," + 
-                "ACCOUNT_NUMBER INT UNIQUE NOT NULL CHECK (ACCOUNT_NUMBER >= 0)," +
+                "ACCOUNT_NUMBER INT PRIMARY KEY CHECK (ACCOUNT_NUMBER >= 0)," +
                 "BALANCE FLOAT NOT NULL CHECK (BALANCE >= 0)" + 
             ");";
 
@@ -138,13 +137,7 @@ public class PostgreJDBC {
                 "SYMBOL VARCHAR (255) NOT NULL," + 
                 "AMOUNT FLOAT NOT NULL CHECK (AMOUNT <> 0), " + 
                 "LIMIT_PRICE FLOAT NOT NULL CHECK (LIMIT_PRICE > 0)," + 
-                "ISSUE_TIME TIMESTAMP NOT NULL," + 
-
-                "CONSTRAINT FK_ORDER_ID " + 
-                    "FOREIGN KEY (ORDER_ID) " + 
-                    "REFERENCES STOCK_ORDER(ORDER_ID) " + 
-                    "ON UPDATE CASCADE " + 
-                    "ON DELETE SET NULL " + 
+                "ISSUE_TIME TIMESTAMP NOT NULL" + 
             ")";
         
         return this.executeUpdateStatement(query);
