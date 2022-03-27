@@ -91,8 +91,60 @@ public class AccountTest {
         assertFalse(account.hasStockToSell("AMAZ", 80));
         assertFalse(account.hasStockToSell("AMAZ", 80));
         assertFalse(account.hasStockToSell("AMAZ", 80));
+
+        assertThrows(IllegalArgumentException.class, ()->account.hasStockToSell("", 10));
+        assertThrows(IllegalArgumentException.class, ()->account.hasStockToSell(null, 10));
         assertThrows(IllegalArgumentException.class, ()->account.hasStockToSell("AMAZ", 0));
         assertThrows(IllegalArgumentException.class, ()->account.hasStockToSell("AMAZ", -1));
+    }
+
+    @Test
+    public void test_placeOrder_error() throws ClassNotFoundException, SQLException, InvalidAlgorithmParameterException{
+        PostgreJDBC jdbc = Shared.helper_generateValidJdbc();
+        Shared.cleanAllTables(jdbc);
+
+        // success: create account and some positions
+        Account account = new Account(jdbc, 0, 1000);
+        assertDoesNotThrow(()->account.commitToDb());
+        Position position = new Position(jdbc, 0, "NYK", 10);
+        assertDoesNotThrow(()->position.commitToDb());
+
+        // error: place an order with symbol = null or ""
+        assertThrows(IllegalArgumentException.class, ()->account.placeOrder("", 10, 10));
+        assertThrows(IllegalArgumentException.class, ()->account.placeOrder(null, 10, 10));
+
+        // error: place an order with amount = 0
+        assertThrows(IllegalArgumentException.class, ()->account.placeOrder("NYK", 0, 10));
+
+        // error: place an order with limit price <= 0
+        assertThrows(IllegalArgumentException.class, ()->account.placeOrder("NYK", 10, 0));
+        assertThrows(IllegalArgumentException.class, ()->account.placeOrder("NYK", 10, -10));
+        assertThrows(IllegalArgumentException.class, ()->account.placeOrder("NYK", -10, -10));
+
+        // error: place buy order without enough balance
+        assertThrows(InvalidAlgorithmParameterException.class, ()->account.placeOrder("NYK", 10, 101));
+
+        // error: place sale order without enough stock
+        assertThrows(InvalidAlgorithmParameterException.class, ()->account.placeOrder("NYK", -11, 90));
+        assertThrows(InvalidAlgorithmParameterException.class, ()->account.placeOrder("AMAZ", -1, 90));
+    }
+
+    @Test
+    public void test_placeOrder_success() throws ClassNotFoundException, SQLException{
+        PostgreJDBC jdbc = Shared.helper_generateValidJdbc();
+        Shared.cleanAllTables(jdbc);
+
+        // success: create account and some positions
+        Account account = new Account(jdbc, 0, 1000);
+        assertDoesNotThrow(()->account.commitToDb());
+        Position position = new Position(jdbc, 0, "NYK", 10);
+        assertDoesNotThrow(()->position.commitToDb());
+
+        // success: place a buy order
+        assertDoesNotThrow(()->account.placeOrder("NYK", 10, 12));
+
+        // success: place a sale order
+        assertDoesNotThrow(()->account.placeOrder("NYK", -2, 20));
     }
 
     @Test

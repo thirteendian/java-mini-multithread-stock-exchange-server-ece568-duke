@@ -43,7 +43,6 @@ public class StockOrder {
      * @param symbol
      * @param amount
      * @param limitPrice
-     * @param issueTime
      */
     public StockOrder(PostgreJDBC jdbc, int accountNumber, String symbol, double amount, double limitPrice){
         this(jdbc, -1, accountNumber, symbol, amount, limitPrice, Timestamp.from(Instant.now()), "OPEN");

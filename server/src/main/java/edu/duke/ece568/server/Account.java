@@ -89,16 +89,14 @@ public class Account {
         String query = 
             "SELECT BALANCE " + 
             "FROM ACCOUNT " + 
-            "WHERE ACCOUNT_NUMBER=" + accountNumber + 
-            ";";
+            "WHERE ACCOUNT_NUMBER=" + accountNumber + " " + 
+            "AND BALANCE >= " + amount * limitPrice;
 
         ResultSet resultSet = jdbc.executeQueryStatement(query);
         if(resultSet == null || !resultSet.next()){
             return false;
         }
-        double actualBalance = resultSet.getDouble("BALANCE");
-        double cost = amount * limitPrice;
-        return actualBalance >= cost;
+        return true;
     }
 
     /**
@@ -111,7 +109,7 @@ public class Account {
     public boolean hasStockToSell(String symbol, double amount) throws SQLException{
         this.updateAccountFromDatabase(this.jdbc, this.accountNumber);
         if(symbol == null || symbol == ""){
-            return false;
+            throw new IllegalArgumentException("cannot attempt to sell symbol == null or empty");
         }
         if(amount <= 0){
             throw new IllegalArgumentException("cannot attempt to sell symbol with negative amount");
@@ -119,14 +117,60 @@ public class Account {
         String query = 
             "SELECT AMOUNT FROM POSITION " + 
             "WHERE ACCOUNT_NUMBER=" + accountNumber +" " + 
-            "AND SYMBOL=\'" + symbol + "\';";
+            "AND SYMBOL=\'" + symbol + "\' " + 
+            "AND AMOUNT >= " + amount + ";";
             
         ResultSet resultSet = jdbc.executeQueryStatement(query);
         if(resultSet == null || !resultSet.next()){
             return false;
         }
-        double actualAmount = resultSet.getDouble("AMOUNT");
-        return actualAmount >= amount;
+        return true;
+    }
+
+    /**
+     * place a buy or sale order
+     * to create a buy order:
+     *  1. check balance
+     *  2. deduct from balance
+     * to create a sale order:
+     *  1. check stock
+     *  2. deduct position
+     * 
+     * @param symbol
+     * @param amount
+     * @param limitPrice
+     * @throws InvalidAlgorithmParameterException
+     * @throws SQLException
+     */
+    public void placeOrder(String symbol, double amount, double limitPrice) throws InvalidAlgorithmParameterException, SQLException{
+        if(symbol == null || symbol == ""){
+            throw new IllegalArgumentException("cannot create order with symbol == null or empty");
+        }
+        if(amount == 0){
+            throw new IllegalArgumentException("cannot create order with amount = 0");
+        }
+        if(limitPrice <= 0){
+            throw new IllegalArgumentException("cannot create order with limit price <= 0");
+        }
+        else if(amount > 0){ // buy order
+            if(!this.canAffordToBuy(amount, limitPrice)){
+                throw new InvalidAlgorithmParameterException(
+                    "this account does not have enough balance to place this buy order");
+            }
+            this.tryAddOrRemoveFromBalance(-1*(amount*limitPrice));
+            StockOrder newOrder = new StockOrder(this.jdbc, this.accountNumber, symbol, amount, limitPrice);
+            newOrder.commitToDb();
+        }
+        else{
+            if(!this.hasStockToSell(symbol, Math.abs(amount))){
+                throw new InvalidAlgorithmParameterException(
+                    "this account does not have enough "  + symbol + " stock to place this sale order");
+            }
+            Position newPosition = new Position(this.jdbc, this.accountNumber, symbol, amount);
+            newPosition.commitToDb();
+            StockOrder newOrder = new StockOrder(this.jdbc, this.accountNumber, symbol, amount, limitPrice);
+            newOrder.commitToDb();
+        }
     }
 
     /**
