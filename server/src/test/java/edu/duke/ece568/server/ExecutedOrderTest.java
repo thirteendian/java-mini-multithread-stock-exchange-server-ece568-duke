@@ -22,12 +22,11 @@ public class ExecutedOrderTest {
         assertThrows(IllegalArgumentException.class, ()->new ExecutedOrder(jdbc, 1, -1, "NYK", 100, 100, time));
         assertThrows(IllegalArgumentException.class, ()->new ExecutedOrder(jdbc, 1, 1, "", 100, 100, time));
         assertThrows(IllegalArgumentException.class, ()->new ExecutedOrder(jdbc, 1, 1, null, 100, 100, time));
-        assertThrows(IllegalArgumentException.class, ()->new ExecutedOrder(jdbc, 1, 1, null, -1, 100, time));
-        assertThrows(IllegalArgumentException.class, ()->new ExecutedOrder(jdbc, 1, 1, null, 100, -1, time));
+        assertThrows(IllegalArgumentException.class, ()->new ExecutedOrder(jdbc, 1, 1, "NYK", -1, 100, time));
 
         // success: create executed order and commit
         ExecutedOrder executedOrder1 = new ExecutedOrder(jdbc, 101, "NYK", 100, 10, time);
-        ExecutedOrder executedOrder2 = new ExecutedOrder(jdbc, 101, "AMAZ", 90, 20, time);
+        ExecutedOrder executedOrder2 = new ExecutedOrder(jdbc, 101, "AMAZ", 90, -20, time);
         assertDoesNotThrow(()->executedOrder1.commitToDb());
         assertDoesNotThrow(()->executedOrder2.commitToDb());
 

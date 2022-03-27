@@ -5,6 +5,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.HashSet;
 
 public class StockOrder {
@@ -107,6 +108,11 @@ public class StockOrder {
         return this.accountNumber;
     }
 
+    public String getOrderStatus() throws SQLException{
+        this.updateOrderFromDatabase(this.jdbc, this.orderId);
+        return this.status;
+    }
+
     public void updateOrderAmount(double offset) throws InvalidAlgorithmParameterException, SQLException{
         if(this.orderId < 0){
             throw new InvalidAlgorithmParameterException("cannot update an order not yet uploaded to database");
@@ -147,14 +153,14 @@ public class StockOrder {
      */
     public void archive(double tradePrice) throws InvalidAlgorithmParameterException, SQLException{
         ExecutedOrder executedOrder = new ExecutedOrder(this.jdbc, this.orderId, this.symbol, 
-            tradePrice, Math.abs(this.amount), this.issueTime);
+            tradePrice, this.amount, this.issueTime);
         executedOrder.commitToDb();
         this.deleteFromDb();
     }
 
     public void partialArchive(double tradeAmount, double tradePrice) throws InvalidAlgorithmParameterException, SQLException{
         ExecutedOrder executedOrder = new ExecutedOrder(this.jdbc, this.orderId, this.symbol, 
-            tradePrice, Math.abs(tradeAmount), this.issueTime);
+            tradePrice, -1*tradeAmount, this.issueTime);
         executedOrder.commitToDb();
         this.updateOrderAmount(tradeAmount);
     }
@@ -181,11 +187,72 @@ public class StockOrder {
         this.orderId = resultSet.getInt("ORDER_ID");
     }
 
-    public void matchOrder(){
+    /**
+     * get all executed orders by ORDER_ID and ORDER_STATUS
+     * @param jdbc
+     * @param orderId
+     * @param status
+     * @return
+     * @throws SQLException
+     */
+    public static ArrayList<StockOrder> getAllStockOrdersByCriteria(PostgreJDBC jdbc, int orderId, String status) throws SQLException{
+        status = status.toUpperCase();
+        String query = 
+            "SELECT * FROM STOCK_ORDER " +
+            "WHERE ORDER_ID="+ orderId + " " + 
+            "AND ORDER_STATUS=\'" + status + "\';";
 
+        ArrayList<StockOrder> stockOrders = new ArrayList<>();
+        ResultSet resultSet = jdbc.executeQueryStatement(query);
+        while(resultSet.next()){
+            StockOrder stockOrder = new StockOrder(jdbc, resultSet.getInt("ORDER_ID"), resultSet.getInt("ACCOUNT_NUM"), 
+                resultSet.getString("SYMBOL"), resultSet.getDouble("AMOUNT"), 
+                resultSet.getDouble("LIMIT_PRICE"), resultSet.getTimestamp("ISSUE_TIME"), resultSet.getString("ORDER_STATUS"));
+            stockOrders.add(stockOrder);
+        }
+        return stockOrders;
     }
 
-    // TODO
+    /**
+     * cancel an order
+     * @throws SQLException
+     * @throws InvalidAlgorithmParameterException
+     */
+    public void cancelOrder() throws SQLException, InvalidAlgorithmParameterException{
+        if(this.orderId < 0){
+            throw new InvalidAlgorithmParameterException("cannot cancel an uncommited order from database");
+        }
+
+        this.updateOrderFromDatabase(this.jdbc, this.orderId);
+        if(this.status.equals("CANCELLED")){
+            throw new InvalidAlgorithmParameterException("cannot cancel order, already cancelled");
+        }
+
+        String query =  
+            "UPDATE STOCK_ORDER " + 
+            "SET ORDER_STATUS=\'CANCELLED\' " + 
+            "WHERE ORDER_ID=" + this.orderId + " " + 
+            "AND ORDER_STATUS <> \'CANCELLED\';";
+
+        if(!this.jdbc.executeUpdateStatement(query)){
+            throw new InvalidAlgorithmParameterException("cannot cancel order from database");
+        }
+    }
+
+    public void matchOrder() throws InvalidAlgorithmParameterException, SQLException{
+        if(this.orderId < 0){
+            throw new InvalidAlgorithmParameterException("cannot match an uncommited order from database");
+        }
+        this.updateOrderFromDatabase(this.jdbc, this.orderId);
+        
+        if(this.amount > 0){
+            this.matchBuyOrder();
+        }
+        else{
+            this.matchSaleOrder();
+        }
+    }
+
     /**
      * match a buy order with sale orders
      * @throws SQLException
@@ -193,36 +260,94 @@ public class StockOrder {
      */
     public void matchBuyOrder() throws SQLException, InvalidAlgorithmParameterException{
         StockOrder matchedOrder = this.getTop1SaleOrdersForBuyOrder();
+
         while(matchedOrder != null){
+
+            Account sellerAccount = new Account(this.jdbc, matchedOrder.accountNumber);
+            Account buyerAccount = new Account(this.jdbc, this.accountNumber);
+
             if(this.amount > Math.abs(matchedOrder.amount)){
                 double tradePrice = Math.abs(matchedOrder.amount * matchedOrder.limitPrice);
 
-                Account salerAccount = new Account(this.jdbc, matchedOrder.accountNumber);
-                Account buyerAccount = new Account(this.jdbc, this.accountNumber);
-
-                salerAccount.tryAddOrRemoveFromBalance(tradePrice);
+                sellerAccount.tryAddOrRemoveFromBalance(tradePrice);
                 buyerAccount.tryAddOrRemoveFromBalance(-1*tradePrice);
 
-                matchedOrder.archive(tradePrice);
-                this.partialArchive(matchedOrder.amount, tradePrice);
+                matchedOrder.archive(matchedOrder.limitPrice);
+                this.partialArchive(matchedOrder.amount, matchedOrder.limitPrice);
 
                 matchedOrder = this.getTop1SaleOrdersForBuyOrder();
             }
             else if(this.amount == Math.abs(matchedOrder.amount)){
                 double tradePrice = Math.abs(matchedOrder.amount * matchedOrder.limitPrice);
 
-                matchedOrder.archive(tradePrice);
-                this.archive(tradePrice);
-
-                Account salerAccount = new Account(this.jdbc, matchedOrder.accountNumber);
-                Account buyerAccount = new Account(this.jdbc, this.accountNumber);
-
-                salerAccount.tryAddOrRemoveFromBalance(tradePrice);
+                sellerAccount.tryAddOrRemoveFromBalance(tradePrice);
                 buyerAccount.tryAddOrRemoveFromBalance(-1*tradePrice);
-                
+
+                matchedOrder.archive(matchedOrder.limitPrice);
+                this.archive(matchedOrder.limitPrice);
+
                 return;
             }
             else{
+                double tradePrice = Math.abs(this.amount * matchedOrder.limitPrice);
+
+                sellerAccount.tryAddOrRemoveFromBalance(tradePrice);
+                buyerAccount.tryAddOrRemoveFromBalance(-1*tradePrice);
+
+                this.archive(matchedOrder.limitPrice);
+                matchedOrder.partialArchive(this.amount, matchedOrder.limitPrice);
+
+                return;
+            }
+        }
+    }
+
+    /**
+     * match a sale order with buy orders
+     * @throws SQLException
+     * @throws InvalidAlgorithmParameterException
+     */
+    public void matchSaleOrder() throws SQLException, InvalidAlgorithmParameterException{
+        StockOrder matchedOrder = this.getTop1BuyOrderForSaleOrder();
+
+        while(matchedOrder != null){
+            Account sellerAccount = new Account(this.jdbc, this.accountNumber);
+            Account buyerAccount = new Account(this.jdbc, matchedOrder.accountNumber);
+
+            double unitTradePrice = matchedOrder.limitPrice;
+
+            if(Math.abs(this.amount) > matchedOrder.amount){
+                double tradePrice =  Math.abs(matchedOrder.limitPrice * matchedOrder.amount);
+
+                sellerAccount.tryAddOrRemoveFromBalance(tradePrice);
+                buyerAccount.tryAddOrRemoveFromBalance(-1*tradePrice);
+
+                matchedOrder.archive(unitTradePrice);
+                this.partialArchive(matchedOrder.amount, unitTradePrice);
+
+                matchedOrder = this.getTop1BuyOrderForSaleOrder();
+            }
+            else if(Math.abs(this.amount) == matchedOrder.amount)
+            {
+                double tradePrice = Math.abs(matchedOrder.limitPrice * matchedOrder.amount);
+
+                sellerAccount.tryAddOrRemoveFromBalance(tradePrice);
+                buyerAccount.tryAddOrRemoveFromBalance(-1*tradePrice);
+
+                this.archive(unitTradePrice);
+                matchedOrder.archive(unitTradePrice);
+
+                return;
+            }
+            else{
+                double tradePrice = Math.abs(matchedOrder.limitPrice * this.amount);
+
+                sellerAccount.tryAddOrRemoveFromBalance(tradePrice);
+                buyerAccount.tryAddOrRemoveFromBalance(-1*tradePrice);
+
+                this.archive(unitTradePrice);
+                matchedOrder.partialArchive(this.amount, unitTradePrice);
+
                 return;
             }
         }
@@ -255,6 +380,29 @@ public class StockOrder {
 
         return stockOrder;
     } 
+
+    protected StockOrder getTop1BuyOrderForSaleOrder() throws SQLException{
+        String query = 
+            "SELECT * FROM STOCK_ORDER " +
+            "WHERE ACCOUNT_NUMBER <> " + this.accountNumber + " " + 
+            "AND SYMBOL=\'" + this.symbol +"\' " + 
+            "AND AMOUNT > 0 " + 
+            "AND LIMIT_PRICE >= " + this.limitPrice + " " + 
+            "AND ORDER_STATUS = \'OPEN\' " + 
+            "ORDER BY LIMIT_PRICE DESC, ISSUE_TIME ASC " + 
+            "LIMIT 1;";
+
+        ResultSet resultSet = this.jdbc.executeQueryStatement(query);
+        if(!resultSet.next()){
+            return null;
+        }
+
+        StockOrder stockOrder = new StockOrder(jdbc, resultSet.getInt("ORDER_ID"), resultSet.getInt("ACCOUNT_NUMBER"), 
+            resultSet.getString("SYMBOL"), resultSet.getDouble("AMOUNT"), resultSet.getDouble("LIMIT_PRICE"), 
+            resultSet.getTimestamp("ISSUE_TIME"), resultSet.getString("ORDER_STATUS"));
+
+        return stockOrder;
+    }
 
     /**
      * equal operator
