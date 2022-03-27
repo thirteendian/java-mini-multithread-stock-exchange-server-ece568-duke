@@ -214,6 +214,9 @@ public class StockOrder {
 
     /**
      * cancel an order
+     * set the order status to CANCELLED
+     * refund buyer for buy order
+     * added back position for sale order
      * @throws SQLException
      * @throws InvalidAlgorithmParameterException
      */
@@ -235,6 +238,16 @@ public class StockOrder {
 
         if(!this.jdbc.executeUpdateStatement(query)){
             throw new InvalidAlgorithmParameterException("cannot cancel order from database");
+        }
+
+        // refund
+        if(this.amount > 0){// if buy order, refund account
+            Account account = new Account(this.jdbc, this.accountNumber);
+            account.tryAddOrRemoveFromBalance(this.limitPrice * this.amount);
+        }
+        else{ // if sale order, add back stock
+            Position position = new Position(this.jdbc, this.accountNumber, this.symbol, Math.abs(this.amount));
+            position.commitToDb();
         }
     }
 
@@ -263,13 +276,13 @@ public class StockOrder {
         while(matchedOrder != null){
 
             Account sellerAccount = new Account(this.jdbc, matchedOrder.accountNumber);
-            Account buyerAccount = new Account(this.jdbc, this.accountNumber);
 
             if(this.amount > Math.abs(matchedOrder.amount)){
                 double tradePrice = Math.abs(matchedOrder.amount * matchedOrder.limitPrice);
 
                 sellerAccount.tryAddOrRemoveFromBalance(tradePrice);
-                buyerAccount.tryAddOrRemoveFromBalance(-1*tradePrice);
+                Position position = new Position(this.jdbc, this.accountNumber, this.symbol, Math.abs(matchedOrder.amount));
+                position.commitToDb();
 
                 matchedOrder.archive(matchedOrder.limitPrice);
                 this.partialArchive(matchedOrder.amount, matchedOrder.limitPrice);
@@ -280,7 +293,8 @@ public class StockOrder {
                 double tradePrice = Math.abs(matchedOrder.amount * matchedOrder.limitPrice);
 
                 sellerAccount.tryAddOrRemoveFromBalance(tradePrice);
-                buyerAccount.tryAddOrRemoveFromBalance(-1*tradePrice);
+                Position position = new Position(this.jdbc, this.accountNumber, this.symbol, Math.abs(matchedOrder.amount));
+                position.commitToDb();
 
                 matchedOrder.archive(matchedOrder.limitPrice);
                 this.archive(matchedOrder.limitPrice);
@@ -291,7 +305,8 @@ public class StockOrder {
                 double tradePrice = Math.abs(this.amount * matchedOrder.limitPrice);
 
                 sellerAccount.tryAddOrRemoveFromBalance(tradePrice);
-                buyerAccount.tryAddOrRemoveFromBalance(-1*tradePrice);
+                Position position = new Position(this.jdbc, this.accountNumber, this.symbol, Math.abs(this.amount));
+                position.commitToDb();
 
                 this.archive(matchedOrder.limitPrice);
                 matchedOrder.partialArchive(this.amount, matchedOrder.limitPrice);
@@ -311,7 +326,6 @@ public class StockOrder {
 
         while(matchedOrder != null){
             Account sellerAccount = new Account(this.jdbc, this.accountNumber);
-            Account buyerAccount = new Account(this.jdbc, matchedOrder.accountNumber);
 
             double unitTradePrice = matchedOrder.limitPrice;
 
@@ -319,7 +333,8 @@ public class StockOrder {
                 double tradePrice =  Math.abs(matchedOrder.limitPrice * matchedOrder.amount);
 
                 sellerAccount.tryAddOrRemoveFromBalance(tradePrice);
-                buyerAccount.tryAddOrRemoveFromBalance(-1*tradePrice);
+                Position position = new Position(this.jdbc, matchedOrder.accountNumber, this.symbol, Math.abs(matchedOrder.amount));
+                position.commitToDb();
 
                 matchedOrder.archive(unitTradePrice);
                 this.partialArchive(matchedOrder.amount, unitTradePrice);
@@ -331,7 +346,8 @@ public class StockOrder {
                 double tradePrice = Math.abs(matchedOrder.limitPrice * matchedOrder.amount);
 
                 sellerAccount.tryAddOrRemoveFromBalance(tradePrice);
-                buyerAccount.tryAddOrRemoveFromBalance(-1*tradePrice);
+                Position position = new Position(this.jdbc, matchedOrder.accountNumber, this.symbol, Math.abs(matchedOrder.amount));
+                position.commitToDb();
 
                 this.archive(unitTradePrice);
                 matchedOrder.archive(unitTradePrice);
@@ -342,8 +358,9 @@ public class StockOrder {
                 double tradePrice = Math.abs(matchedOrder.limitPrice * this.amount);
 
                 sellerAccount.tryAddOrRemoveFromBalance(tradePrice);
-                buyerAccount.tryAddOrRemoveFromBalance(-1*tradePrice);
-
+                Position position = new Position(this.jdbc, matchedOrder.accountNumber, this.symbol, Math.abs(this.amount));
+                position.commitToDb();
+                
                 this.archive(unitTradePrice);
                 matchedOrder.partialArchive(this.amount, unitTradePrice);
 

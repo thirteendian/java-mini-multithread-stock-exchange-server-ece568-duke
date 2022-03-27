@@ -251,6 +251,7 @@ public class StockOrderTest {
         Account account1 = new Account(jdbc, 0, 1000);
         assertDoesNotThrow(()->account1.commitToDb());
 
+        // success: cancel a sale order
         StockOrder saleOrder = new StockOrder(jdbc, 0, "NYK", -2, 100);
         assertThrows(InvalidAlgorithmParameterException.class, ()->saleOrder.cancelOrder());
         assertDoesNotThrow(()->saleOrder.commitToDb());
@@ -258,6 +259,14 @@ public class StockOrderTest {
         assertDoesNotThrow(()->saleOrder.cancelOrder());
         assertEquals("CANCELLED", saleOrder.getOrderStatus());
         assertThrows(InvalidAlgorithmParameterException.class, ()->saleOrder.cancelOrder());
+
+        // success: cancel a buy order
+        StockOrder buyOrder = new StockOrder(jdbc, 0, "NYK", 2, 90);
+        assertDoesNotThrow(()->buyOrder.commitToDb());
+        assertEquals("OPEN", buyOrder.getOrderStatus());
+        assertDoesNotThrow(()->buyOrder.cancelOrder());
+        assertEquals("CANCELLED", buyOrder.getOrderStatus());
+        assertThrows(InvalidAlgorithmParameterException.class, ()->buyOrder.cancelOrder());
     }
 
     @Test
