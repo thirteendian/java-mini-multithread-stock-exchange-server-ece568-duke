@@ -270,7 +270,30 @@ public class StockOrderTest {
     }
 
     @Test
-    public void test_matchOrder_amountMoreThanMatched() throws ClassNotFoundException, SQLException{
+    public void teset_matchOrder_buyAmountMoreThanMatched() throws ClassNotFoundException, SQLException{
+        PostgreJDBC jdbc = Shared.helper_generateValidJdbc();
+        Shared.cleanAllTables(jdbc);
+    
+        // success: create accounts
+        Account account1 = new Account(jdbc, 0, 1000);
+        Account account2 = new Account(jdbc, 1, 1000);
+        Account account3 = new Account(jdbc, 2, 1000);
+        assertDoesNotThrow(()->account1.commitToDb());
+        assertDoesNotThrow(()->account2.commitToDb());
+        assertDoesNotThrow(()->account3.commitToDb());
+
+        // success: buy order amount > sale order amount
+        StockOrder buyOrder = new StockOrder(jdbc, 0, "NYK", 10, 100);
+        assertDoesNotThrow(()->buyOrder.commitToDb());
+        StockOrder saleOrder1 = new StockOrder(jdbc, 1, "NYK", -2, 90);
+        StockOrder saleOrder2 = new StockOrder(jdbc, 2, "NYK", -3, 80);
+        assertDoesNotThrow(()->saleOrder1.commitToDb());
+        assertDoesNotThrow(()->saleOrder2.commitToDb());
+        assertDoesNotThrow(()->buyOrder.matchOrder());
+    }
+
+    @Test
+    public void test_matchOrder_saleAmountMoreThanMatched() throws ClassNotFoundException, SQLException{
         PostgreJDBC jdbc = Shared.helper_generateValidJdbc();
         Shared.cleanAllTables(jdbc);
     

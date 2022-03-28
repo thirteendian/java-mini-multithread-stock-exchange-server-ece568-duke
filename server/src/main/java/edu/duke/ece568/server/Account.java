@@ -44,14 +44,12 @@ public class Account {
         this.updateAccountFromDatabase(jdbc, accountNumber);
     }
 
-    public void commitToDb() throws InvalidAlgorithmParameterException{
+    public void commitToDb() throws InvalidAlgorithmParameterException, SQLException{
         String query = 
             "INSERT INTO ACCOUNT(ACCOUNT_NUMBER, BALANCE) " + 
             "VALUES (" + accountNumber + ", " + balance + ");";
         
-        if(!jdbc.executeUpdateStatement(query)){
-            throw new InvalidAlgorithmParameterException("cannot create account, the account number may be occupied");
-        }
+        this.jdbc.executeUpdateStatement(query);
     }
 
     /**
@@ -71,7 +69,8 @@ public class Account {
             "SET BALANCE=" + this.balance + " " + 
             "WHERE ACCOUNT_NUMBER=" + this.accountNumber + ";";
         
-        return jdbc.executeUpdateStatement(query);
+        jdbc.executeUpdateStatement(query);
+        return true;
     }
     
     /**

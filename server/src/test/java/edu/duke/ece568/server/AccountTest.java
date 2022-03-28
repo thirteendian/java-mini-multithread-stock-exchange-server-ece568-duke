@@ -13,9 +13,9 @@ import java.sql.SQLException;
 import org.junit.jupiter.api.Test;
 
 public class AccountTest {
-    private void cleanAllTables(PostgreJDBC jdbc){
+    private void cleanAllTables(PostgreJDBC jdbc) throws SQLException{
         String queryCleanAllTables = "DELETE FROM ARCHIVE; DELETE FROM STOCK_ORDER; DELETE FROM POSITION; DELETE FROM ACCOUNT;";
-        assertTrue(jdbc.executeUpdateStatement(queryCleanAllTables));
+        jdbc.executeUpdateStatement(queryCleanAllTables);
     }
 
     private PostgreJDBC helper_generateValidJdbc() throws ClassNotFoundException, SQLException{

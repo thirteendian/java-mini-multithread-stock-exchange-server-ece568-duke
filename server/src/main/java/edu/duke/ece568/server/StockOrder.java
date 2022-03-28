@@ -123,24 +123,20 @@ public class StockOrder {
             "SET AMOUNT=" + newAmount + " " + 
             "WHERE ORDER_ID=" + this.orderId +
             ";";
-        
-        if(!this.jdbc.executeUpdateStatement(query)){
-            throw new InvalidAlgorithmParameterException("cannot update order amount to database");
-        }
+        this.jdbc.executeUpdateStatement(query);
     }
 
     /**
      * delete stock order from db
      * @throws InvalidAlgorithmParameterException
+     * @throws SQLException
      */
-    public void deleteFromDb() throws InvalidAlgorithmParameterException{
+    public void deleteFromDb() throws InvalidAlgorithmParameterException, SQLException{
         if(this.orderId < 0){
             throw new InvalidAlgorithmParameterException("cannot delete an order not yet uploaded to database");
         }
         String query = "DELETE FROM STOCK_ORDER WHERE ORDER_ID=" + this.orderId + ";";
-        if(!this.jdbc.executeUpdateStatement(query)){
-            throw new InvalidAlgorithmParameterException("cannot delete the stock order from database");
-        }
+        this.jdbc.executeUpdateStatement(query);
         this.orderId = -1;
     }
 
@@ -236,9 +232,7 @@ public class StockOrder {
             "WHERE ORDER_ID=" + this.orderId + " " + 
             "AND ORDER_STATUS <> \'CANCELLED\';";
 
-        if(!this.jdbc.executeUpdateStatement(query)){
-            throw new InvalidAlgorithmParameterException("cannot cancel order from database");
-        }
+        this.jdbc.executeUpdateStatement(query);
 
         // refund
         if(this.amount > 0){// if buy order, refund account
