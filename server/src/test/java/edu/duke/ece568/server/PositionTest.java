@@ -18,7 +18,7 @@ public class PositionTest {
 
         // error: account does not exist
         Position position1 = new Position(jdbc, 0, "NYK", 100);
-        assertThrows(InvalidAlgorithmParameterException.class, ()->position1.commitToDb()); 
+        assertThrows(SQLException.class, ()->position1.commitToDb()); 
 
         // success: create account
         Account account = new Account(jdbc, 0, 100);

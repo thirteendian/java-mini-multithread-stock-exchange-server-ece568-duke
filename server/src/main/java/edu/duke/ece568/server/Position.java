@@ -82,9 +82,7 @@ public class Position {
                     "WHERE ACCOUNT_NUMBER=" + this.accountNumber + " " + 
                     "AND SYMBOL=\'" + this.symbol + "\';";
 
-                if(!this.jdbc.executeUpdateStatement(query)){
-                    throw new InvalidAlgorithmParameterException("internal db error, cannot update position");
-                }
+                this.jdbc.executeUpdateStatement(query);
             }
             else{
                 String query = 
@@ -93,9 +91,7 @@ public class Position {
                     "WHERE ACCOUNT_NUMBER=" + this.accountNumber + " " + 
                     "AND SYMBOL=\'" + this.symbol + "\';";
 
-                if(!this.jdbc.executeUpdateStatement(query)){
-                    throw new InvalidAlgorithmParameterException("internal db error, cannot update position");
-                }
+                this.jdbc.executeUpdateStatement(query);
             }        
         }
         catch(IllegalArgumentException e){
@@ -103,16 +99,12 @@ public class Position {
                 "INSERT INTO POSITION(ACCOUNT_NUMBER, SYMBOL, AMOUNT) " + 
                 "VALUES (" + this.accountNumber  + ", \'" + this.symbol + "\', " + this.amount + ");";
 
-            if(!this.jdbc.executeUpdateStatement(query)){
-                throw new InvalidAlgorithmParameterException("internal db error, cannot update position");
-            }
+            this.jdbc.executeUpdateStatement(query);
         }
     }
 
     @Override
     public boolean equals(Object o){
-        System.out.println("here");
-
         if(o.getClass().equals(this.getClass())){
             Position rhs = (Position)o;
             return this.accountNumber == rhs.accountNumber &&
