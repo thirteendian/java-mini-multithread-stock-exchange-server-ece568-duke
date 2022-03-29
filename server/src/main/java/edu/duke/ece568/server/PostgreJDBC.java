@@ -5,6 +5,8 @@ import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.sql.Timestamp;
+import java.time.Instant;
 
 public class PostgreJDBC {
     private Connection conn;
@@ -35,6 +37,7 @@ public class PostgreJDBC {
         errorCounter += this.createAccountTable() ? 0:1;
         errorCounter += this.createPositionTable() ? 0:1;
         errorCounter += this.createOrderTable() ? 0:1;
+        errorCounter += this.createArchiveTable() ? 0:1;
 
         return errorCounter > 0 ? false: true;
     }
@@ -109,7 +112,8 @@ public class PostgreJDBC {
                 "ORDER_ID SERIAL PRIMARY KEY," + 
                 "ACCOUNT_NUMBER INT NOT NULL CHECK (ACCOUNT_NUMBER >= 0)," + 
                 "SYMBOL VARCHAR (255) NOT NULL," + 
-                "AMOUNT FLOAT NOT NULL," + 
+                "AMOUNT FLOAT NOT NULL CHECK (AMOUNT <> 0), " + 
+                "LIMIT_PRICE FLOAT NOT NULL CHECK (LIMIT_PRICE > 0)," + 
                 "ISSUE_TIME TIMESTAMP NOT NULL," + 
                 "ORDER_STATUS STATUS NOT NULL," + 
 
@@ -124,6 +128,26 @@ public class PostgreJDBC {
         errorCounter += this.executeUpdateStatement(tableQuery) ? 0 : 1;
 
         return errorCounter > 0 ? false: true;
+    }
+
+    protected boolean createArchiveTable(){
+        String query = 
+            "CREATE TABLE IF NOT EXISTS ARCHIVE(" +
+                "ARCHIVE_ID SERIAL PRIMARY KEY," + 
+                "ORDER_ID INT NOT NULL," + 
+                "SYMBOL VARCHAR (255) NOT NULL," + 
+                "AMOUNT FLOAT NOT NULL CHECK (AMOUNT <> 0), " + 
+                "LIMIT_PRICE FLOAT NOT NULL CHECK (LIMIT_PRICE > 0)," + 
+                "ISSUE_TIME TIMESTAMP NOT NULL," + 
+
+                "CONSTRAINT FK_ORDER_ID " + 
+                    "FOREIGN KEY (ORDER_ID) " + 
+                    "REFERENCES STOCK_ORDER(ORDER_ID) " + 
+                    "ON UPDATE CASCADE " + 
+                    "ON DELETE SET NULL " + 
+            ")";
+        
+        return this.executeUpdateStatement(query);
     }
 
     /**
@@ -222,5 +246,180 @@ public class PostgreJDBC {
             e.printStackTrace();
             return false;
         }
+    }
+
+    public String tryPlaceAndMatchOrder(int accountNumber, String symbol, double amount, double limitPrice) throws SQLException{
+        // invalid if amount = 0
+        if(amount == 0){
+            return "cannot create order with amount = 0";
+        }   
+        if(limitPrice <= 0){
+            return "cannot create order with limit price <= 0";
+        }
+
+        // if amount > 0, it is a buying order
+        else if(amount > 0){
+           return this.placeAndMatchBuyOrder(accountNumber, symbol, amount, limitPrice);            
+        }
+        // if amount < 0, it is a sale order
+        else{
+           return this.placeAndMatchSaleOrder(accountNumber, symbol, amount, limitPrice);
+        }
+    }
+
+    protected String placeAndMatchBuyOrder(int accountNumber, String symbol, double amount, double limitPrice) throws SQLException{
+        // invalid if buyer cannot afford
+        if(!this.tryCheckBuyerCanAfford(accountNumber, amount, limitPrice)){
+            return "no enough balance, cannot create buying order";
+        }
+
+        // get eligible sale orders
+        ResultSet resultSet = this.getMatchedSaleOrdersForBuyOrder(accountNumber, symbol, limitPrice);
+
+        // if there are not matching sale orders, add to table and return
+        if(resultSet == null || !resultSet.next()){
+            if(this.tryAddNewOrder(accountNumber, symbol, amount, limitPrice)){
+                return null;
+            }
+            else{
+                return "error updating the database when create new buying order";
+            }
+        }
+        else{
+            return null;
+        }
+    }
+
+    protected String placeAndMatchSaleOrder(int accountNumber, String symbol, double amount, double limitPrice) throws SQLException{
+        // invalid if seller has no stock with enough amount
+        if(!this.tryCheckSellerHasStock(accountNumber, symbol, amount)){
+            return "no enough stock " + symbol + " , cannot create sale order";
+        }
+
+        // get eligible buy order
+        ResultSet resultSet = this.getMatchedBuyOrdersForSalesOrder(accountNumber, symbol, limitPrice);
+
+        // if there are not matching buy orders, add to table and return
+        if(resultSet == null || !resultSet.next()){
+            if(this.tryAddNewOrder(accountNumber, symbol, amount, limitPrice)){
+                return null;
+            }
+            else{
+                return "error updating the database when create new buying order";
+            }
+        }
+        else{
+            return null;
+        }
+    }
+
+    /**
+     * try to insert an new order to table stock_order
+     * @param accountNumber
+     * @param symbol
+     * @param amount
+     * @param limitPrice
+     * @return true if insertion is successful, otherwise false
+     */
+    protected boolean tryAddNewOrder(int accountNumber, String symbol, double amount, double limitPrice){
+        if(amount == 0 || limitPrice <= 0){
+            return false;
+        }
+        Timestamp timeStampNow = Timestamp.from(Instant.now());
+        String query = 
+            "INSERT INTO STOCK_ORDER (ACCOUNT_NUMBER, SYMBOL, AMOUNT, LIMIT_PRICE, ISSUE_TIME, ORDER_STATUS)" +
+            "VALUES(" + accountNumber + ", \'" + symbol + "\', " + amount + ", " + limitPrice + ", \'" + timeStampNow + "\', \'OPEN\');";
+        return this.executeUpdateStatement(query);
+    }
+
+    /**
+     * check if a buyer can afford the buy order
+     * @param accountNumber
+     * @param amount
+     * @param limitPrice
+     * @return true if can afford, otherwise falsse
+     * @throws SQLException
+     */
+    protected boolean tryCheckBuyerCanAfford(int accountNumber, double amount, double limitPrice) throws SQLException{
+        if(amount <= 0 || limitPrice <= 0){
+            return false;
+        }
+        String query = 
+            "SELECT BALANCE " + 
+            "FROM ACCOUNT " + 
+            "WHERE ACCOUNT_NUMBER=" + accountNumber + 
+            ";";
+
+        ResultSet resultSet = this.executeQueryStatement(query);
+        if(resultSet == null || !resultSet.next()){
+            return false;
+        }
+        double actualBalance = resultSet.getDouble("BALANCE");
+        double cost = amount * limitPrice;
+        return actualBalance >= cost;
+    }
+
+    /**
+     * check if a seller has the type of stock and enough amount
+     * @param accountNumber
+     * @param symbol
+     * @param amount
+     * @return true if verify, else false
+     * @throws SQLException
+     */
+    protected boolean tryCheckSellerHasStock(int accountNumber, String symbol, double amount) throws SQLException{
+        if(symbol == null || symbol == ""){
+            return false;
+        }
+        if(amount <= 0){
+            return false;
+        }
+        String query = 
+            "SELECT AMOUNT FROM POSITION " + 
+            "WHERE ACCOUNT_NUMBER=" + accountNumber +" " + 
+            "AND SYMBOL=\'" + symbol + "\';";
+            
+        ResultSet resultSet = this.executeQueryStatement(query);
+        if(resultSet == null || !resultSet.next()){
+            return false;
+        }
+        double actualAmount = resultSet.getDouble("AMOUNT");
+        return actualAmount >= amount;
+    }
+
+    /**
+     * get matched sale orders for a buy order
+     * @param accountNumber
+     * @param symbol
+     * @param limitPrice
+     * @return a resultset of matched sale orders
+     */
+    protected ResultSet getMatchedSaleOrdersForBuyOrder(int accountNumber, String symbol, double limitPrice){
+        return this.executeQueryStatement(
+            "SELECT * FROM STOCK_ORDER " +
+            "WHERE ACCOUNT_NUMBER <> " + accountNumber + " " + 
+            "AND SYMBOL=\'" + symbol +"\' " + 
+            "AND AMOUNT < 0 " + 
+            "AND LIMIT_PRICE <= " + limitPrice + " " + 
+            "ORDER BY LIMIT_PRICE DESC, ISSUE_TIME ASC;"
+        );
+    }
+
+    /**
+     * get matched buy orders for a sale order
+     * @param accountNumber
+     * @param symbol
+     * @param limitPrice
+     * @return a resultset of matched buy orders
+     */
+    protected ResultSet getMatchedBuyOrdersForSalesOrder(int accountNumber, String symbol, double limitPrice){
+        return this.executeQueryStatement(
+            "SELECT * FROM STOCK_ORDER " +
+            "WHERE ACCOUNT_NUMBER <> " + accountNumber + " " + 
+            "AND SYMBOL=\'" + symbol +"\' " + 
+            "AND AMOUNT > 0 " + 
+            "AND LIMIT_PRICE >= " + limitPrice + " " + 
+            "ORDER BY LIMIT_PRICE DESC, ISSUE_TIME ASC;"
+        );
     }
 }

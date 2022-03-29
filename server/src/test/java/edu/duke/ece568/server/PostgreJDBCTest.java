@@ -18,6 +18,11 @@ public class PostgreJDBCTest {
         return new PostgreJDBC("localhost", "5432", "ece568_hw4", "postgres", "passw0rd");
     }
 
+    private void cleanAllTables(PostgreJDBC jdbc){
+        String queryCleanAllTables = "DELETE FROM ARCHIVE; DELETE FROM STOCK_ORDER; DELETE FROM POSITION; DELETE FROM ACCOUNT;";
+        assertTrue(jdbc.executeUpdateStatement(queryCleanAllTables));
+    }
+
     @Test
     public void test_constructor() throws ClassNotFoundException, SQLException{
         // correct
@@ -38,7 +43,7 @@ public class PostgreJDBCTest {
     public void test_createTablesIfNotExist() throws ClassNotFoundException, SQLException{
         PostgreJDBC jdbc = this.helper_generateValidJdbc();
         
-        String queryDropAllTables = "DROP TABLE IF EXISTS ACCOUNT, POSITION, STOCK_ORDER;";
+        String queryDropAllTables = "DROP TABLE IF EXISTS ACCOUNT, POSITION, STOCK_ORDER, ARCHIVE;";
         String queryDropAllTypes = "DROP TYPE IF EXISTS STATUS;";
 
         assertTrue(jdbc.executeUpdateStatement(queryDropAllTables));
@@ -73,9 +78,7 @@ public class PostgreJDBCTest {
     @Test
     public void test_tryAddPosition() throws ClassNotFoundException, SQLException{
         PostgreJDBC jdbc = this.helper_generateValidJdbc();
-
-        String queryCleanAllTables = "DELETE FROM STOCK_ORDER; DELETE FROM POSITION; DELETE FROM ACCOUNT;";
-        assertTrue(jdbc.executeUpdateStatement(queryCleanAllTables));
+        this.cleanAllTables(jdbc);
 
         // error: create symbol when account does not exist
         assertFalse(jdbc.tryUpdateOrCreatePosition(0, "symbol", 12.2));
@@ -128,5 +131,156 @@ public class PostgreJDBCTest {
         queryCheckPositionAmount = "SELECT AMOUNT FROM POSITION WHERE ACCOUNT_NUMBER=0 AND SYMBOL=\'NYK\';";
         resultSet = jdbc.executeQueryStatement(queryCheckPositionAmount);
         assertFalse(resultSet.next());
+    }
+
+    @Test
+    public void test_tryAddNewOrder() throws ClassNotFoundException, SQLException{
+        PostgreJDBC jdbc = this.helper_generateValidJdbc();
+        this.cleanAllTables(jdbc);
+
+        // error: account does not exist
+        assertFalse(jdbc.tryAddNewOrder(0, "NYK", 100.5, 10.5));
+
+        // success: create new account
+        assertTrue(jdbc.tryCreateAccount(0, 10.05));
+
+        // success: create order with valid values
+        assertTrue(jdbc.tryAddNewOrder(0, "NYK", 100.5, 10.5));
+        assertTrue(jdbc.tryAddNewOrder(0, "NYK", -100.5, 10.5));
+
+        // error: create order when amount = 0
+        assertFalse(jdbc.tryAddNewOrder(0, "NYK", 0, 10.5));
+
+        // error: create order with price <= 0
+        assertFalse(jdbc.tryAddNewOrder(0, "NYK", -100.5, 0));
+        assertFalse(jdbc.tryAddNewOrder(0, "NYK", -100.5, -1));
+    }   
+
+    @Test
+    public void test_tryCheckBuyerCanAfford() throws ClassNotFoundException, SQLException{
+        PostgreJDBC jdbc = this.helper_generateValidJdbc();
+        this.cleanAllTables(jdbc);
+
+        // error: account does not exist
+        assertFalse(jdbc.tryCheckBuyerCanAfford(0, 100.5, 10.5));
+
+        // success: create new account
+        assertTrue(jdbc.tryCreateAccount(0, 100));
+
+        // success: cost <= balance
+        assertTrue(jdbc.tryCheckBuyerCanAfford(0, 5, 19));
+        assertTrue(jdbc.tryCheckBuyerCanAfford(0, 5, 20));
+
+        // error: cost > balance
+        assertFalse(jdbc.tryCheckBuyerCanAfford(0, 1, 101));
+
+        // error: amount <= 0
+        assertFalse(jdbc.tryCheckBuyerCanAfford(0, 0, 20));
+        assertFalse(jdbc.tryCheckBuyerCanAfford(0, -1, 20));
+
+        // error: limit price <= 0
+        assertFalse(jdbc.tryCheckBuyerCanAfford(0, 20, 0));
+        assertFalse(jdbc.tryCheckBuyerCanAfford(0, 20, -1));
+    }
+
+    @Test
+    public void try_CheckSellerHasStock() throws ClassNotFoundException, SQLException{
+        PostgreJDBC jdbc = this.helper_generateValidJdbc();
+        this.cleanAllTables(jdbc);
+
+        // error: account does not exist
+        assertFalse(jdbc.tryCheckSellerHasStock(0, "NYK", 100));
+
+        // success: create new account
+        assertTrue(jdbc.tryCreateAccount(0, 100));
+
+        // error: account has empty stock
+        assertFalse(jdbc.tryCheckSellerHasStock(0, "NYK", 100));
+
+        // success: create position for account
+        assertTrue(jdbc.executeUpdateStatement(
+            "INSERT INTO POSITION(ACCOUNT_NUMBER, SYMBOL, AMOUNT) " + 
+            "VALUES (0, \'NYK\', 150);"
+        ));
+
+        // success: valid verification
+        assertTrue(jdbc.tryCheckSellerHasStock(0, "NYK", 100));
+        assertTrue(jdbc.tryCheckSellerHasStock(0, "NYK", 150));
+
+        // error: amount claimed > actual amount
+        assertFalse(jdbc.tryCheckSellerHasStock(0, "NYK", 151));
+
+        // error: no such stock type
+        assertFalse(jdbc.tryCheckSellerHasStock(0, "ABC", 100));
+
+        // error: amount <= 0
+        assertFalse(jdbc.tryCheckSellerHasStock(0, "NYK", 0));
+        assertFalse(jdbc.tryCheckSellerHasStock(0, "NYK", -1));
+
+        // error: symbol = null or ""
+        assertFalse(jdbc.tryCheckSellerHasStock(0, "", 100));
+        assertFalse(jdbc.tryCheckSellerHasStock(0, null, 100));
+    }
+
+    @Test
+    public void test_getMatchedSaleOrdersForBuyOrder() throws ClassNotFoundException, SQLException{
+        PostgreJDBC jdbc = this.helper_generateValidJdbc();
+        this.cleanAllTables(jdbc);
+
+        // error: account does not exist
+        assertFalse(jdbc.tryAddNewOrder(0, "NYK", -100, 100));
+
+        //success: create new accounts and add sale orders
+        assertTrue(jdbc.tryCreateAccount(0, 100));
+        assertTrue(jdbc.tryCreateAccount(1, 100));
+        assertTrue(jdbc.tryCreateAccount(2, 100));
+        assertTrue(jdbc.tryCreateAccount(3, 100));
+        assertTrue(jdbc.tryAddNewOrder(0, "NYK", -100, 100));
+        assertTrue(jdbc.tryAddNewOrder(1, "NYK", -80, 80));
+        assertTrue(jdbc.tryAddNewOrder(1, "NYK", 80, 80));
+        assertTrue(jdbc.tryAddNewOrder(2, "NYK", -90, 90));
+        assertTrue(jdbc.tryAddNewOrder(3, "NYK", -70, 70));
+
+        // success: getting matched sale orders
+        ResultSet resultSet = jdbc.getMatchedSaleOrdersForBuyOrder(0, "NYK", 85);
+        assertNotNull(resultSet);
+
+        int counter = 0;
+        double[] expectedLimitPrice = {80, 70};
+        while(resultSet.next()){
+            assertEquals(expectedLimitPrice[counter], resultSet.getDouble("LIMIT_PRICE"));
+            counter++;
+        }
+    }
+
+    @Test
+    public void test_getMatchedBuyOrdersForSalesOrder() throws ClassNotFoundException, SQLException{
+        PostgreJDBC jdbc = this.helper_generateValidJdbc();
+        this.cleanAllTables(jdbc);
+
+        // error: account does not exist
+        assertFalse(jdbc.tryAddNewOrder(0, "NYK", -100, 100));
+
+        //success: create new accounts and add sale orders
+        assertTrue(jdbc.tryCreateAccount(0, 100));
+        assertTrue(jdbc.tryCreateAccount(1, 100));
+        assertTrue(jdbc.tryCreateAccount(2, 100));
+        assertTrue(jdbc.tryCreateAccount(3, 100));
+        assertTrue(jdbc.tryAddNewOrder(0, "NYK", 100, 100));
+        assertTrue(jdbc.tryAddNewOrder(1, "NYK", 80, 80));
+        assertTrue(jdbc.tryAddNewOrder(1, "NYK", -80, 80));
+        assertTrue(jdbc.tryAddNewOrder(2, "NYK", 90, 90));
+        assertTrue(jdbc.tryAddNewOrder(3, "NYK", 70, 70));
+
+        // success: getting matched sale orders
+        ResultSet resultSet = jdbc.getMatchedBuyOrdersForSalesOrder(0, "NYK", 75);
+        assertNotNull(resultSet);
+
+        int counter = 0;
+        double[] expectedLimitPrice = {90, 80};
+        while(resultSet.next()){
+            assertEquals(expectedLimitPrice[counter], resultSet.getDouble("LIMIT_PRICE"));
+            counter++;
+        }
     }
 }
