@@ -30,6 +30,7 @@ public class AccountTest {
         assertThrows(IllegalArgumentException.class, ()->new Account(jdbc, 0));
         Account account1 = new Account(jdbc, 0, 100);
         assertDoesNotThrow(()->account1.commitToDb());
+        assertThrows(SQLException.class, ()->account1.commitToDb());
     }
 
     @Test
