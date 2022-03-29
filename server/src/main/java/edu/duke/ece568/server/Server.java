@@ -16,6 +16,7 @@ class Server {
     public final static int THREAD_COUNT = 32;
     public final static int PORT_NUM = 12345;
 
+
     /**
      * Server Constructor
      * @throws IOException
@@ -43,9 +44,10 @@ class Server {
         while (true) {
             // Accept Connections
             Socket clientSocket = myServer.acceptConnection();
-            Runnable task = new ServerRunnable(clientSocket);
+            ServerRunnable serverRunnable = new ServerRunnable(clientSocket);
             //Once connected, send thread
-            myServer.service.submit(task);
+            Thread t = new Thread(serverRunnable);
+            t.start();
         }
 
 
