@@ -23,7 +23,7 @@ class RequestXMLParser {
         //this.dbf = DocumentBuilderFactory.newInstance();
         //this.db = this.dbf.newDocumentBuilder();
         this.parseLength();
-        this.jc = JAXBContext.newInstance();
+        //this.jc = JAXBContext.newInstance();
 
 
     }
@@ -32,7 +32,7 @@ class RequestXMLParser {
      * parse recvMsg to be Integer + XML
      */
     private void parseLength() {
-       String[] temp = this.recvMsg.split("\n",2);
+        String[] temp = this.recvMsg.split("\n", 2);
         this.byteLength = Integer.parseInt(temp[0]);
         this.XMLMsg = temp[1];
 
@@ -46,8 +46,6 @@ class RequestXMLParser {
         } catch (IOException e) {
             e.printStackTrace();
         }*/
-    }
-
     }
 
 }
