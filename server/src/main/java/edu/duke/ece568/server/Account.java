@@ -141,7 +141,7 @@ public class Account {
      * @throws InvalidAlgorithmParameterException
      * @throws SQLException
      */
-    public void placeOrder(String symbol, double amount, double limitPrice) throws InvalidAlgorithmParameterException, SQLException{
+    public int placeOrder(String symbol, double amount, double limitPrice) throws InvalidAlgorithmParameterException, SQLException{
         if(symbol == null || symbol == ""){
             throw new IllegalArgumentException("cannot create order with symbol == null or empty");
         }
@@ -159,6 +159,8 @@ public class Account {
             this.tryAddOrRemoveFromBalance(-1*(amount*limitPrice));
             StockOrder newOrder = new StockOrder(this.jdbc, this.accountNumber, symbol, amount, limitPrice);
             newOrder.commitToDb();
+            // newOrder.matchOrder();
+            return newOrder.getOrderId();
         }
         else{
             if(!this.hasStockToSell(symbol, Math.abs(amount))){
@@ -169,6 +171,8 @@ public class Account {
             newPosition.commitToDb();
             StockOrder newOrder = new StockOrder(this.jdbc, this.accountNumber, symbol, amount, limitPrice);
             newOrder.commitToDb();
+            // newOrder.matchOrder();
+            return newOrder.getOrderId();
         }
     }
 

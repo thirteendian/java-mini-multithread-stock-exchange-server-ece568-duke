@@ -29,6 +29,10 @@ public class PostgreJDBC {
         );
     }
 
+    public Connection getConnection(){
+        return this.conn;
+    }
+
     protected void createTablesIfNotExist() throws SQLException{
         this.createAccountTable();
         this.createPositionTable();

@@ -48,9 +48,6 @@ public class ExecutedOrder {
         if(limitPrice <= 0){
             throw new IllegalArgumentException("archived order cannot have LIMIT_PRICE <= 0");
         }
-        // if(amount <= 0){
-        //     throw new IllegalArgumentException("archived order cannot have AMOUNT <= 0");
-        // }
 
         this.jdbc = jdbc;
         this.archiveId = archiveId;
@@ -63,6 +60,18 @@ public class ExecutedOrder {
 
     public int getArchiveId(){
         return this.archiveId;
+    }
+
+    public double getAmount(){
+        return this.amount;
+    }
+
+    public double getLimitPrice(){
+        return this.limitPrice;
+    }
+
+    public Timestamp getIssueTime(){
+        return this.issueTime;
     }
 
     /**

@@ -112,6 +112,11 @@ public class StockOrder {
         return this.status;
     }
 
+    public Timestamp getIssueTime() throws SQLException{
+        this.updateOrderFromDatabase(this.jdbc, this.orderId);
+        return this.issueTime;
+    }
+
     public void updateOrderAmount(double offset) throws InvalidAlgorithmParameterException, SQLException{
         if(this.orderId < 0){
             throw new InvalidAlgorithmParameterException("cannot update an order not yet uploaded to database");
@@ -200,7 +205,7 @@ public class StockOrder {
         ArrayList<StockOrder> stockOrders = new ArrayList<>();
         ResultSet resultSet = jdbc.executeQueryStatement(query);
         while(resultSet.next()){
-            StockOrder stockOrder = new StockOrder(jdbc, resultSet.getInt("ORDER_ID"), resultSet.getInt("ACCOUNT_NUM"), 
+            StockOrder stockOrder = new StockOrder(jdbc, resultSet.getInt("ORDER_ID"), resultSet.getInt("ACCOUNT_NUMBER"), 
                 resultSet.getString("SYMBOL"), resultSet.getDouble("AMOUNT"), 
                 resultSet.getDouble("LIMIT_PRICE"), resultSet.getTimestamp("ISSUE_TIME"), resultSet.getString("ORDER_STATUS"));
             stockOrders.add(stockOrder);

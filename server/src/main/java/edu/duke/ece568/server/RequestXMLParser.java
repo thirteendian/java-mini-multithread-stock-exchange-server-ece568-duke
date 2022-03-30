@@ -1,11 +1,19 @@
 package edu.duke.ece568.server;
 
-import java.io.IOException;
 import java.io.StringReader;
+import java.security.InvalidAlgorithmParameterException;
+import java.sql.SQLException;
+import java.util.ArrayList;
 
 import javax.xml.XMLConstants;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.transform.OutputKeys;
+import javax.xml.transform.Transformer;
+import javax.xml.transform.TransformerException;
+import javax.xml.transform.TransformerFactory;
+import javax.xml.transform.dom.DOMSource;
+import javax.xml.transform.stream.StreamResult;
 
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
@@ -14,172 +22,237 @@ import org.xml.sax.InputSource;
 
 class RequestXMLParser {
     private String originalRequest;
+    private PostgreJDBC jdbc;
     private boolean debug;
+    private Document responseXml;
 
-    public RequestXMLParser(String originalRequest, boolean debug){
+    public RequestXMLParser(PostgreJDBC jdbc, String originalRequest, boolean debug){
         this.originalRequest = originalRequest;
+        this.jdbc = jdbc;
         this.debug = debug;
     }
 
-    public void parseAndProcessRequest() throws IOException{
+    protected void printXml(Document doc) throws TransformerException{
+        TransformerFactory transformerFactory = TransformerFactory.newInstance();
+        transformerFactory.setAttribute("indent-number", 2);
+
+        Transformer transformer = transformerFactory.newTransformer();
+
+        DOMSource source = new DOMSource(doc);
+        StreamResult consoleResult = new StreamResult(System.out);
+        transformer.transform(new DOMSource(), consoleResult);
+        transformer.setOutputProperty(OutputKeys.OMIT_XML_DECLARATION, "yes");
+        transformer.setOutputProperty(OutputKeys.INDENT, "yes");
+
+        transformer.transform(source, consoleResult);
+    }
+
+    protected void createErrorElementWithoutAttributes(Element responseParentNode, String errorMessage){
+        Element element = responseXml.createElement("error");
+        element.appendChild(responseXml.createTextNode(errorMessage));
+        responseParentNode.appendChild(element);
+    }
+
+    public void parseAndProcessRequest(){
         try{
             DocumentBuilderFactory documentBuilderFactory = DocumentBuilderFactory.newInstance();
             documentBuilderFactory.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
 
             DocumentBuilder documentBuilder = documentBuilderFactory.newDocumentBuilder();
-            Document document = documentBuilder.parse(new InputSource(new StringReader(this.originalRequest)));
+            Document requestXml = documentBuilder.parse(new InputSource(new StringReader(this.originalRequest)));
+            this.responseXml = documentBuilder.newDocument();
 
-            document.getDocumentElement().normalize();
-            Element root = document.getDocumentElement();
+            requestXml.getDocumentElement().normalize();
+            Element root = requestXml.getDocumentElement();
             String nodeName = root.getNodeName();
+
+            Element responseRoot = responseXml.createElement("results");
+            responseXml.appendChild(responseRoot);
+
             if(nodeName.equals("create")){
-                this.parseCreate(root);
+                this.parseCreate(root, responseRoot);
             }
             else if(nodeName.equals("transactions")){
-                this.parseTransactions(root);
+                this.parseTransactions(root, responseRoot);
             }
             else{
-                // TODO: generate error message
-                System.out.print("root node must be create or transactions\n");
+                // generate error message
+                String errorMessage = "root node must be create or transactions";
+                this.createErrorElementWithoutAttributes(responseRoot, errorMessage);
             }
+            this.printXml(responseXml);
         }
         catch(Exception e){
+            // TODO: generate error message
             System.out.print(e + "\n");
         }
+        
     }
 
-    protected void parseCreate(Element createNode){
+    protected void parseCreate(Element createNode, Element responseParentNode) throws SQLException{
         Element element = (Element)createNode.getFirstChild();
         while(element != null && element.getNodeType() == Node.ELEMENT_NODE){
             String nodeName = element.getNodeName();
             
             if(nodeName.equals("account")){
-                this.parseAccount(element);
+                this.parseAccount(element, responseParentNode);
             }
             else if(nodeName.equals("symbol")){
-                this.parseSymbol(element);
+                this.parseSymbol(element, responseParentNode);
             }
             else{
-                System.out.print("create node must only have children account or symbol\n");
-                // TODO: generate error message
+                String errorMessage = "create node must only have children account or symbol";
+                this.createErrorElementWithoutAttributes(responseParentNode, errorMessage);
             }
             element = (Element)element.getNextSibling();
         }
     }
 
-    protected void parseAccount(Element accountNode){
+    protected void parseAccount(Element accountNode, Element responseParentNode) throws SQLException{
         if(!accountNode.hasAttribute("id")){
-            System.out.print("acccount must have attribute id\n");
-            // TODO: genereate error
+            String errorMessage = "acccount must have attribute id";
+            this.createErrorElementWithoutAttributes(responseParentNode, errorMessage);
             return;
         }
         if(!accountNode.hasAttribute("balance")){
-            System.out.print("acccount must have attribute balance\n");
-            // TODO: genereate error
+            String errorMessage = "acccount must have attribute balance";
+            this.createErrorElementWithoutAttributes(responseParentNode, errorMessage);
             return;
         }
         try{
             int accountNumber = Integer.parseInt(accountNode.getAttribute("id"));
             double balance = Double.parseDouble(accountNode.getAttribute("balance"));
             System.out.print(accountNumber  + ", " + balance + "\n");
-            // TODO: create account
+
+            this.jdbc.getConnection().setAutoCommit(false);
+            Account account = new Account(jdbc, accountNumber, balance);
+            account.commitToDb();
+            this.jdbc.getConnection().commit();
+            
+            // generate message
+            Element element = this.responseXml.createElement("created");
+            element.setAttribute("id", Integer.toString(accountNumber));
+            element.setAttribute("balance", Double.toString(balance));
+            responseParentNode.appendChild(element);
         }
         catch(Exception e){
-            // TODO: generate error message
+            this.jdbc.getConnection().rollback();
+            
+            // generate error message
+            Element element = responseXml.createElement("error");
+            element.setAttribute("id", accountNode.getAttribute("id"));
+            element.appendChild(responseXml.createTextNode(e.toString()));
+            responseParentNode.appendChild(element);
+
             System.out.print(e + "\n");
         }
     }
 
-    protected void parseSymbol(Element symbolNode){
+    protected void parseSymbol(Element symbolNode, Element responseParentNode) throws SQLException{
         if(!symbolNode.hasAttribute("sym")){
-            // TODO: generate error message
+            String errorMessage = "symbol must have attribute sym";
+            this.createErrorElementWithoutAttributes(responseParentNode, errorMessage);
             return;
         }
 
         String symbol = symbolNode.getAttribute("sym");
         Element element = (Element)symbolNode.getFirstChild();
         if(element == null){
-            System.out.print("symbol must have 1 our more children\n");
-            // TODO: generate error message
+            String errorMessage = "symbol must have 1 our more children";            
+            this.createErrorElementWithoutAttributes(responseParentNode, errorMessage);
             return;
         }
         
         while(element != null && element.getNodeType() == Node.ELEMENT_NODE){
             if(!element.getNodeName().equals("account")){
-                System.out.print("symbol must only have children account\n");
-                // TODO: generate error message
+                String errorMessage = "symbol must only have children account";
+                this.createErrorElementWithoutAttributes(responseParentNode, errorMessage);
                 return;
             }
             if(!element.hasAttribute("id")){
-                System.out.print("account under symbol must have attribute id\n");
-                // TODO: generate error message
+                String errorMessage = "account under symbol must have attribute id";
+                this.createErrorElementWithoutAttributes(responseParentNode, errorMessage);
                 return;
             }
             try{
                 int accountNumber = Integer.parseInt(element.getAttribute("id"));
                 double amount = Double.parseDouble(element.getTextContent());     
-                System.out.println(accountNumber + ", " + symbol + ", " + amount);
 
-                // TODO: create symbol
+                this.jdbc.getConnection().setAutoCommit(false);
+                Position position = new Position(jdbc, accountNumber, symbol, amount);
+                position.commitToDb();
+                this.jdbc.getConnection().commit();
+
+                // generate message
+                Element responseElement = this.responseXml.createElement("created");
+                responseElement.setAttribute("sym", symbol);
+                responseElement.setAttribute("id", Integer.toString(accountNumber));
+                responseParentNode.appendChild(responseElement);
             }
             catch(Exception e){
-                // TODO: generate error message
-                System.out.print(e +"\n");
+                this.jdbc.getConnection().rollback();
+
+                // generate message
+                Element responseElement = this.responseXml.createElement("error");
+                responseElement.setAttribute("sym", symbol);
+                responseElement.setAttribute("id", element.getAttribute("id"));
+                responseElement.appendChild(this.responseXml.createTextNode(e.toString()));
+                responseParentNode.appendChild(responseElement);
             }
 
             element = (Element)element.getNextSibling();
         }
     }
 
-    protected void parseTransactions(Element transactionsNode){
+    protected void parseTransactions(Element transactionsNode, Element responseParentNode) throws SQLException{
         if(!transactionsNode.hasAttribute("id")){
-            System.out.print("transaction must have attribute id\n");
-            // TODO: generate error message
+            String errorMessage = "transaction must have attribute id";
+            this.createErrorElementWithoutAttributes(responseParentNode, errorMessage);
             return;
         }
         int accountNumber = Integer.parseInt(transactionsNode.getAttribute("id"));
 
         Element element = (Element)transactionsNode.getFirstChild();
         if(element == null){
-            System.out.print("transaction must have 1 or more elements\n");
-            // TODO: generate error message
+            String errorMessage = "transaction must have 1 or more elements";
+            this.createErrorElementWithoutAttributes(responseParentNode, errorMessage);
             return;
         }
 
         while(element != null && element.getNodeType() == Node.ELEMENT_NODE){
             switch(element.getNodeName()){
                 case "order":
-                    this.parseOrder(element, accountNumber);
+                    this.parseOrder(element, responseParentNode, accountNumber);
                     break;
                 case "query":
-                    this.parseQuery(element, accountNumber);
+                    this.parseQuery(element, responseParentNode, accountNumber);
                     break;
                 case "cancel":
-                    this.parseCancel(element, accountNumber);
+                    this.parseCancel(element, responseParentNode, accountNumber);
                     break;
                 default:
-                    // TODO: generate error message
-                    System.out.print("transaction must have children order, query or cancel\n");
+                    String errorMessage = "transaction must have children order, query or cancel";
+                    this.createErrorElementWithoutAttributes(responseParentNode, errorMessage);
                     break;
             }
             element = (Element)element.getNextSibling();
         }
     }
 
-    protected void parseOrder(Element orderNode, int accountNumber){
+    protected void parseOrder(Element orderNode, Element responseParentNode, int accountNumber) throws SQLException{
         if(!orderNode.hasAttribute("sym")){
-            System.out.print("order must have attribute sys\n");
-            // TODO: generate error message
+            String errorMessage = "order must have attribute sym";
+            this.createErrorElementWithoutAttributes(responseParentNode, errorMessage);
             return;
         }
         if(!orderNode.hasAttribute("amount")){
-            System.out.print("order must have attribute amount\n");
-            // TODO: generate error message
+            String errorMessage = "order must have attribute amount";
+            this.createErrorElementWithoutAttributes(responseParentNode, errorMessage);
             return;
         }
         if(!orderNode.hasAttribute("limit")){
-            System.out.print("order must have attribute limit\n");
-            // TODO: generate error message
+            String errorMessage = "order must have attribute limit";
+            this.createErrorElementWithoutAttributes(responseParentNode, errorMessage);
             return;
         }
         try{
@@ -187,45 +260,134 @@ class RequestXMLParser {
             double amount = Double.parseDouble(orderNode.getAttribute("amount"));
             double limitPrice = Double.parseDouble(orderNode.getAttribute("limit"));
             System.out.print(accountNumber + ", " + symbol + ", " + amount + ", " + limitPrice + "\n");
-            // TODO: create order
+
+            this.jdbc.getConnection().setAutoCommit(false);
+            Account account = new Account(jdbc, accountNumber);
+            int newOrderId = account.placeOrder(symbol, amount, limitPrice);
+            this.jdbc.getConnection().commit();
+
+            // create message
+            Element responseElement = this.responseXml.createElement("opened");
+            responseElement.setAttribute("sym", symbol);
+            responseElement.setAttribute("amount", Double.toString(amount));
+            responseElement.setAttribute("limit", Double.toString(limitPrice));
+            responseElement.setAttribute("id", Integer.toString(newOrderId));
+            responseParentNode.appendChild(responseElement);
+
         }
         catch(Exception e){
-            System.out.print(e + "\n");
-            // TODO: generate error message
+            this.jdbc.getConnection().rollback();
+            
+            Element responseElement = this.responseXml.createElement("error");
+            responseElement.setAttribute("sym", orderNode.getAttribute("sym"));
+            responseElement.setAttribute("id", orderNode.getAttribute("id"));
+            responseElement.appendChild(this.responseXml.createTextNode(e.toString()));
+            responseParentNode.appendChild(responseElement);
         }
     }
 
-    protected void parseQuery(Element queryNode, int accountNumber){
+    protected void createTransactionsStatusElement(Element responseParentNode, int orderId){
+        Element element = this.responseXml.createElement("status");
+        element.setAttribute("id", Integer.toString(orderId));
+        responseParentNode.appendChild(element);
+        responseParentNode = element;
+    }
+
+    protected void parseOpenOrderStatus(Element responseParentNode, int orderId) throws SQLException{
+        ArrayList<StockOrder> stockOrders = StockOrder.getAllStockOrdersByCriteria(this.jdbc, orderId, "OPEN");
+        if(!stockOrders.isEmpty()){
+            for(StockOrder stockOrder: stockOrders){
+                Element responseElement = this.responseXml.createElement("open");
+                responseElement.setAttribute("shares", Double.toString(stockOrder.getAmount()));
+                responseParentNode.appendChild(responseElement);
+            }
+        }
+    }
+
+    protected void parseCancelledOrderStatus(Element responseParentNode, int orderId) throws SQLException{
+        ArrayList<StockOrder> stockOrders = StockOrder.getAllStockOrdersByCriteria(this.jdbc, orderId, "CANCELLED");
+        if(!stockOrders.isEmpty()){
+            for(StockOrder stockOrder: stockOrders){
+                Element responseElement = this.responseXml.createElement("open");
+                responseElement.setAttribute("shares", Double.toString(stockOrder.getAmount()));
+                responseElement.setAttribute("time", stockOrder.getIssueTime().toString());
+                responseParentNode.appendChild(responseElement);
+            }
+        }
+    }
+
+    protected void parseExecuteddOrderStatus(Element responseParentNode, int orderId) throws SQLException, IllegalAccessException{
+        ArrayList<ExecutedOrder> executedOrders = ExecutedOrder.getAllExecutedOrdersByOrderId(jdbc, orderId);
+        for(ExecutedOrder executOrder: executedOrders){
+            Element responseElement = this.responseXml.createElement("open");
+            responseElement.setAttribute("shares", Double.toString(executOrder.getAmount()));
+            responseElement.setAttribute("price", Double.toString(executOrder.getLimitPrice()));
+            responseElement.setAttribute("time", executOrder.getIssueTime().toString());
+            responseParentNode.appendChild(responseElement);
+        }
+    }
+
+
+    protected void parseQuery(Element queryNode, Element responseParentNode, int accountNumber){
         if(!queryNode.hasAttribute("id")){
-            System.out.print("order must have attribute sys\n");
-            // TODO: generate error message
+            String errorMessage = "order must have attribute id";
+            this.createErrorElementWithoutAttributes(responseParentNode, errorMessage);
             return;
         }
         try{
             int orderId = Integer.parseInt(queryNode.getAttribute("id"));
-            System.out.print("query: " + accountNumber + ", " + orderId + "\n");
-            // TODO: query orders
+
+            Element statusElement = this.responseXml.createElement("status");
+            statusElement.setAttribute("id", Integer.toString(orderId));
+            responseParentNode.appendChild(statusElement);
+            
+            // opened orders
+            this.parseOpenOrderStatus(statusElement, orderId);
+
+            // cancelled orders
+            this.parseCancelledOrderStatus(statusElement, orderId);
+
+            // execited orders
+            this.parseExecuteddOrderStatus(statusElement, orderId);
+
         }
         catch(Exception e){
-            System.out.print(e + "\n");
-            // TODO: generate error message
+            this.createErrorElementWithoutAttributes(responseParentNode, e.toString());
         }
     }
 
-    protected void parseCancel(Element cancelNode, int accountNumber){
+    protected void parseCancel(Element cancelNode, Element responseParentNode,int accountNumber) throws SQLException{
         if(!cancelNode.hasAttribute("id")){
-            System.out.print("cancel must have attribute id\n");
-             // TODO: generate error message
-             return;
+            String errorMessage = "order must have attribute id";
+            this.createErrorElementWithoutAttributes(responseParentNode, errorMessage);
+            return;
         }
+
+
         try{
             int orderId = Integer.parseInt(cancelNode.getAttribute("id"));
-            System.out.println("cancel: " + accountNumber + ", " + orderId);
-            // TODO: cancel orders
+            Element statusElement = this.responseXml.createElement("canceled");
+            statusElement.setAttribute("id", Integer.toString(orderId));
+            responseParentNode.appendChild(statusElement);
+
+            this.jdbc.getConnection().setAutoCommit(false);
+            StockOrder stockOrder = new StockOrder(jdbc, orderId);
+            stockOrder.cancelOrder();
+            this.jdbc.getConnection().commit();
+
+            //TODO: create message
+        }
+        catch(NumberFormatException e){
+            this.jdbc.getConnection().rollback();
+            Element responseElement = this.responseXml.createElement("error");
+            responseElement.setAttribute("id", cancelNode.getAttribute("id"));
+            responseElement.appendChild(responseXml.createTextNode(e.toString()));
+            responseParentNode.appendChild(responseElement);
+            
         }
         catch(Exception e){
-            System.out.print(e + "\n");
-            // TODO: generate error message
+            this.jdbc.getConnection().rollback();
+            this.createErrorElementWithoutAttributes(responseParentNode, e.toString());
         }
     }
 }
