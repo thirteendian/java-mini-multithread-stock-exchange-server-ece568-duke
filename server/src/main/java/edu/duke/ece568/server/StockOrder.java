@@ -381,7 +381,7 @@ public class StockOrder {
             "AND AMOUNT < 0 " + 
             "AND LIMIT_PRICE <= " + this.limitPrice + " " + 
             "AND ORDER_STATUS = \'OPEN\' " + 
-            "ORDER BY LIMIT_PRICE DESC, ISSUE_TIME ASC " + 
+            "ORDER BY LIMIT_PRICE ASC, ISSUE_TIME ASC " + 
             "LIMIT 1;";
 
         ResultSet resultSet = this.jdbc.executeQueryStatement(query);

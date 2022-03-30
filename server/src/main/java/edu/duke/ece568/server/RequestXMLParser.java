@@ -148,6 +148,9 @@ class RequestXMLParser {
             element.setAttribute("balance", Double.toString(balance));
             responseParentNode.appendChild(element);
         }
+        catch(NumberFormatException e){
+            this.createErrorElementWithoutAttributes(responseParentNode, e.toString());
+        }
         catch(Exception e){
             this.jdbc.getConnection().rollback();
             
@@ -180,12 +183,14 @@ class RequestXMLParser {
             if(!element.getNodeName().equals("account")){
                 String errorMessage = "symbol must only have children account";
                 this.createErrorElementWithoutAttributes(responseParentNode, errorMessage);
-                return;
+                element = (Element)element.getNextSibling();
+                continue;
             }
             if(!element.hasAttribute("id")){
                 String errorMessage = "account under symbol must have attribute id";
                 this.createErrorElementWithoutAttributes(responseParentNode, errorMessage);
-                return;
+                element = (Element)element.getNextSibling();
+                continue;
             }
             try{
                 int accountNumber = Integer.parseInt(element.getAttribute("id"));

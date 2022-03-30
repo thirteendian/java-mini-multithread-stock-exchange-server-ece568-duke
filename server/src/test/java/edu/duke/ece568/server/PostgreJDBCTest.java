@@ -33,11 +33,11 @@ public class PostgreJDBCTest {
     public void test_createTablesIfNotExist() throws ClassNotFoundException, SQLException{
         PostgreJDBC jdbc = this.helper_generateValidJdbc();
         
-        String queryDropAllTables = "DROP TABLE IF EXISTS ACCOUNT, POSITION, STOCK_ORDER, ARCHIVE;";
-        String queryDropAllTypes = "DROP TYPE IF EXISTS STATUS;";
+        // String queryDropAllTables = "DROP TABLE IF EXISTS ACCOUNT, POSITION, STOCK_ORDER, ARCHIVE;";
+        // String queryDropAllTypes = "DROP TYPE IF EXISTS STATUS;";
 
-        assertDoesNotThrow(()->jdbc.executeUpdateStatement(queryDropAllTables));
-        assertDoesNotThrow(()->jdbc.executeUpdateStatement(queryDropAllTypes));
+        // assertDoesNotThrow(()->jdbc.executeUpdateStatement(queryDropAllTables));
+        // assertDoesNotThrow(()->jdbc.executeUpdateStatement(queryDropAllTypes));
 
         // if empty, test creation
         // test creation when existing

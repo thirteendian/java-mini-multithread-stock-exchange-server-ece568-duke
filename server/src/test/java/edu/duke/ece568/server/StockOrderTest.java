@@ -77,7 +77,7 @@ public class StockOrderTest {
         saleOrder3.commitToDb();
         saleOrder4.commitToDb();
 
-        assertEquals(saleOrder3, buyOrder1.getTop1SaleOrdersForBuyOrder());
+        assertEquals(saleOrder2, buyOrder1.getTop1SaleOrdersForBuyOrder());
         assertNull(buyOrder2.getTop1SaleOrdersForBuyOrder());
     }
 
