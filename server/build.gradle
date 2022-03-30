@@ -21,7 +21,7 @@ dependencies {
 
 application {
     // Define the main class for the application.
-    mainClass = 'edu.duke.ece651.mp.server.Server'
+    mainClass = 'edu.duke.ece568.server.Server'
 }
 tasks.named('test') {
     // Use JUnit Platform for unit tests.
