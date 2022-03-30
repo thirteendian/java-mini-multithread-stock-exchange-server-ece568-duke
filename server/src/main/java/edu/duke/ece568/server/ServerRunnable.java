@@ -31,6 +31,9 @@ public class ServerRunnable implements Runnable {
 
 
             try {
+                String msg = "Hello World";
+                sendMsg(msg);
+                /*
                 //receive XML string
                 String msg = this.recvMsg();
                 //Parser XML String
@@ -38,7 +41,7 @@ public class ServerRunnable implements Runnable {
 
                 //SQL
 
-                //send ResponseXML
+                //send ResponseXML8 */
             } catch (Exception e) {
                 e.printStackTrace();
             }
