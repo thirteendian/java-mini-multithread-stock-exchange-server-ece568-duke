@@ -15,7 +15,9 @@ dependencies {
     implementation 'com.google.guava:guava:30.1.1-jre'
     implementation 'org.postgresql:postgresql:42.2.10'
     //JABX
-    implementation 'javax.xml.bind:jaxb-api:2.2.4'
+    implementation 'jakarta.xml.bind:jakarta.xml.bind-api:4.0.0-RC3'
+    implementation("com.sun.xml.bind:jaxb-impl:2.3.6")
+    implementation group: 'org.glassfish.jaxb', name: 'jaxb-runtime', version: '3.0.2'
 
 }
 

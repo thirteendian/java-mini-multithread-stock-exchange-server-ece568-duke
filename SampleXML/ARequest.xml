@@ -1,7 +1,16 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <create>
-    <account id="123456" balance="1000"/>
+    <accoun id="123456" balance="1000"/>
+    <account i="23456" balance="1000"/>
     <symbol sym="SYM">
         <account id="123456">100000</account>
     </symbol>
+    <symbol sym="ABC">
+        <account id="123456mvk">200000</account>
+    </symbol>
+    <account id="00001" balance="1000"/>
+    <symbol sym="DEF">
+        <account id="123456">300000</account>
+    </symbol>
+    <account id="3080" balance="1000"/>
 </create>
