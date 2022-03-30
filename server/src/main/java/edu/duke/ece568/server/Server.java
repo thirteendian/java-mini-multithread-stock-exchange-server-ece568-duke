@@ -56,7 +56,7 @@ class Server {
         
         try {
             //XML String String Reader
-            String XML_str = Files.readString(Path.of("/Users/yuxuan/Project/erss-hwk4-ac692-yy340/SampleXML/ARequest.xml"));
+            String XML_str = Files.readString(Path.of("/Users/yuxuan/Project/erss-hwk4-ac692-yy340/SampleXML/BRequest.xml"));
             XML_str = "172\n"+XML_str;
             RequestXMLParser requestXMLParser = new RequestXMLParser(XML_str);
             int a = 0;
