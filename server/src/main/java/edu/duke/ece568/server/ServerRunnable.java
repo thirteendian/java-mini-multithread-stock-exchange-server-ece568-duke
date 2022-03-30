@@ -31,7 +31,8 @@ public class ServerRunnable implements Runnable {
 
 
             try {
-                String msg = "Hello World";
+                String msg = recvMsg();
+                sendMsg("Your Input:");
                 sendMsg(msg);
                 /*
                 //receive XML string

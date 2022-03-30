@@ -24,11 +24,27 @@ public class Client{
         this.reader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
     }
 
+    public void sendMsg(String msg) throws IOException {
+        this.writer.write(msg + "\n");
+        this.writer.flush();
+    }
+
+    /**
+     * Receive messgae from the server
+     *
+     * @return String
+     * @throws IOException
+     */
+    public String recvMsg() throws IOException {
+        return this.reader.readLine();
+    }
+
     public static void main(String[] args) {
 
         //Connect
         try{
             Client myClient = new Client("127.0.0.1");
+
         } catch (Exception e) {
             e.printStackTrace();
         }
