@@ -3,8 +3,6 @@ package edu.duke.ece568.server;
 import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -12,7 +10,6 @@ import java.util.concurrent.Executors;
 class Server {
     private final ServerSocket serversocket;
     private ExecutorService service;
-    //    private ArrayList<Socket> clientSocketList;
     public final static int THREAD_COUNT = 32;
     public final static int PORT_NUM = 12345;
 

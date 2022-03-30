@@ -6,15 +6,17 @@ import java.sql.SQLException;
 import java.time.Instant;
 
 import javax.xml.parsers.ParserConfigurationException;
+import javax.xml.transform.TransformerException;
 
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.xml.sax.SAXException;
 
 public class RequestXMLParserTest {
+    @Disabled
     @Test
     public void test_parseAndProcessRequest_create() throws ParserConfigurationException, SAXException, 
-        IOException, ClassNotFoundException, SQLException{
+        IOException, ClassNotFoundException, SQLException, TransformerException{
 
         PostgreJDBC jdbc = Shared.helper_generateValidJdbc();
         Shared.cleanAllTables(jdbc);
@@ -29,13 +31,14 @@ public class RequestXMLParserTest {
                 "</symbol>" + 
                 "<account id=\"738\" balance=\"2000\"/>" +
             "</create>";
-        RequestXMLParser parser = new RequestXMLParser(jdbc, xml, true);
+        RequestXMLParser parser = new RequestXMLParser(jdbc, xml);
         parser.parseAndProcessRequest();
     }
 
+    @Disabled
     @Test
     public void test_parseAndProcessRequest_transactions() throws ParserConfigurationException, SAXException, 
-        IOException, ClassNotFoundException, SQLException, InvalidAlgorithmParameterException{
+        IOException, ClassNotFoundException, SQLException, InvalidAlgorithmParameterException, TransformerException{
 
         PostgreJDBC jdbc = Shared.helper_generateValidJdbc();
         Shared.cleanAllTables(jdbc);
@@ -49,9 +52,9 @@ public class RequestXMLParserTest {
         "<transactions id=\"0\">" + 
             "<order sym=\"SYM\" amount=\"10\" limit=\"5.2\"/>" + 
             "<query id=\"" +order.getOrderId() + "\"/>" + 
-            "<cancel id=\"2x\"/>" + 
+            "<cancel id=\"2\"/>" + 
         "</transactions>";
-        RequestXMLParser parser = new RequestXMLParser(jdbc, xml, true);
+        RequestXMLParser parser = new RequestXMLParser(jdbc, xml);
         parser.parseAndProcessRequest();
     }
 }

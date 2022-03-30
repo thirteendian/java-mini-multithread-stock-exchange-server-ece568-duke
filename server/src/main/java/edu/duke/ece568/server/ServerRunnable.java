@@ -26,26 +26,19 @@ public class ServerRunnable implements Runnable {
 
     @Override
     public void run() {
-
         while (true) {
-
-
             try {
-                String msg = recvMsg();
-                sendMsg("Your Input:");
-                sendMsg(msg);
-                /*
-                //receive XML string
-                String msg = this.recvMsg();
-                //Parser XML String
-                RequestXMLParser requestXMLParser = new RequestXMLParser(msg);
+                sendMsg("type your input:");
+                PostgreJDBC jdbc = new PostgreJDBC("localhost", "5432", "ece568_hw4", "postgres", "passw0rd");
 
-                //SQL
+                String request = recvMsg();
+                RequestXMLParser parser = new RequestXMLParser(jdbc, request);
+                String response = parser.parseAndProcessRequest();
+                sendMsg(response);
 
-                //send ResponseXML8 */
-                return;
             } catch (Exception e) {
                 e.printStackTrace();
+                return;
             }
 
         }

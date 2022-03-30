@@ -1,13 +1,15 @@
 package edu.duke.ece568.server;
 
+import java.io.IOException;
 import java.io.StringReader;
-import java.security.InvalidAlgorithmParameterException;
+import java.io.StringWriter;
 import java.sql.SQLException;
 import java.util.ArrayList;
 
 import javax.xml.XMLConstants;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.parsers.ParserConfigurationException;
 import javax.xml.transform.OutputKeys;
 import javax.xml.transform.Transformer;
 import javax.xml.transform.TransformerException;
@@ -19,17 +21,17 @@ import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
 import org.xml.sax.InputSource;
+import org.xml.sax.SAXException;
 
 class RequestXMLParser {
     private String originalRequest;
     private PostgreJDBC jdbc;
-    private boolean debug;
     private Document responseXml;
 
-    public RequestXMLParser(PostgreJDBC jdbc, String originalRequest, boolean debug){
+    public RequestXMLParser(PostgreJDBC jdbc, String originalRequest){
         this.originalRequest = originalRequest;
         this.jdbc = jdbc;
-        this.debug = debug;
+        this.responseXml = null;
     }
 
     protected void printXml(Document doc) throws TransformerException{
@@ -47,13 +49,25 @@ class RequestXMLParser {
         transformer.transform(source, consoleResult);
     }
 
-    protected void createErrorElementWithoutAttributes(Element responseParentNode, String errorMessage){
+    protected void createErrorElementWithoutAttributes(Element responseParentNode, String errorMessage){        
         Element element = responseXml.createElement("error");
         element.appendChild(responseXml.createTextNode(errorMessage));
         responseParentNode.appendChild(element);
     }
 
-    public void parseAndProcessRequest(){
+    protected String getResponse() throws TransformerException{
+        TransformerFactory tf = TransformerFactory.newInstance();
+        Transformer transformer = tf.newTransformer();
+        transformer.setOutputProperty(OutputKeys.OMIT_XML_DECLARATION, "yes");
+        StringWriter writer = new StringWriter();
+        transformer.transform(new DOMSource(this.responseXml), new StreamResult(writer));
+        String output = writer.getBuffer().toString().replaceAll("\n|\r", "");
+        return output;
+    }
+
+    public String parseAndProcessRequest() throws ParserConfigurationException, SAXException, IOException, 
+        SQLException, TransformerException{
+
         try{
             DocumentBuilderFactory documentBuilderFactory = DocumentBuilderFactory.newInstance();
             documentBuilderFactory.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
@@ -81,12 +95,11 @@ class RequestXMLParser {
                 this.createErrorElementWithoutAttributes(responseRoot, errorMessage);
             }
             this.printXml(responseXml);
+            return this.getResponse();
         }
         catch(Exception e){
-            // TODO: generate error message
-            System.out.print(e + "\n");
+            return "<error>" + e.toString() + "</error>";
         }
-        
     }
 
     protected void parseCreate(Element createNode, Element responseParentNode) throws SQLException{
@@ -328,7 +341,7 @@ class RequestXMLParser {
     }
 
 
-    protected void parseQuery(Element queryNode, Element responseParentNode, int accountNumber){
+    protected void parseQuery(Element queryNode, Element responseParentNode, int accountNumber) throws SQLException{
         if(!queryNode.hasAttribute("id")){
             String errorMessage = "order must have attribute id";
             this.createErrorElementWithoutAttributes(responseParentNode, errorMessage);
@@ -363,31 +376,79 @@ class RequestXMLParser {
             return;
         }
 
+        try{
+            Integer.parseInt(cancelNode.getAttribute("id"));
+        }
+        catch(Exception e){
+            this.createErrorElementWithoutAttributes(responseParentNode, e.toString());
+            return;
+        }
+
+        // perform cancellation
+        try{
+            this.performCancelOrder(cancelNode, responseParentNode);
+        }
+        catch(Exception e){
+            this.jdbc.getConnection().rollback();
+            this.createErrorElementWithoutAttributes(responseParentNode, e.toString());
+        }
+
+        // query cancelled but executed
+        try{
+            this.parseCancelExecuted(cancelNode, responseParentNode);
+        }
+        catch(Exception e){
+            this.jdbc.getConnection().rollback();
+            this.createErrorElementWithoutAttributes(responseParentNode, e.toString());
+        }
+    }
+
+    protected void performCancelOrder(Element cancelNode, Element responseParentNode) throws SQLException{
+        int orderId = Integer.parseInt(cancelNode.getAttribute("id"));
+        Element statusElement = this.responseXml.createElement("canceled");
+        statusElement.setAttribute("id", Integer.toString(orderId));
+        responseParentNode.appendChild(statusElement);
 
         try{
-            int orderId = Integer.parseInt(cancelNode.getAttribute("id"));
-            Element statusElement = this.responseXml.createElement("canceled");
-            statusElement.setAttribute("id", Integer.toString(orderId));
-            responseParentNode.appendChild(statusElement);
-
             this.jdbc.getConnection().setAutoCommit(false);
             StockOrder stockOrder = new StockOrder(jdbc, orderId);
             stockOrder.cancelOrder();
             this.jdbc.getConnection().commit();
 
-            //TODO: create message
-        }
-        catch(NumberFormatException e){
-            this.jdbc.getConnection().rollback();
-            Element responseElement = this.responseXml.createElement("error");
-            responseElement.setAttribute("id", cancelNode.getAttribute("id"));
-            responseElement.appendChild(responseXml.createTextNode(e.toString()));
-            responseParentNode.appendChild(responseElement);
-            
+            // generate message
+            Element element = this.responseXml.createElement("canceled");
+            element.setAttribute("shares", Double.toString(stockOrder.getAmount()));
+            element.setAttribute("time", stockOrder.getIssueTime().toString());
+            statusElement.appendChild(element);
         }
         catch(Exception e){
             this.jdbc.getConnection().rollback();
-            this.createErrorElementWithoutAttributes(responseParentNode, e.toString());
+
+            Element responseElement = this.responseXml.createElement("error");
+            responseElement.setAttribute("id", Integer.toString(orderId));
+            responseElement.appendChild(this.responseXml.createTextNode(e.toString()));
+            statusElement.appendChild(responseElement);
+        }
+    }
+
+    protected void parseCancelExecuted(Element cancelNode, Element responseParentNode){
+        int orderId = Integer.parseInt(cancelNode.getAttribute("id"));
+        
+        try{
+            ArrayList<ExecutedOrder> executedOrders = ExecutedOrder.getAllExecutedOrdersByOrderId(this.jdbc, orderId);
+            for(ExecutedOrder executOrder: executedOrders){
+                Element responseElement = this.responseXml.createElement("executed");
+                responseElement.setAttribute("shares", Double.toString(executOrder.getAmount()));
+                responseElement.setAttribute("price", Double.toString(executOrder.getLimitPrice()));
+                responseElement.setAttribute("time", executOrder.getIssueTime().toString());
+                responseParentNode.appendChild(responseElement);
+            }
+        }
+        catch(Exception e){
+            Element responseElement = this.responseXml.createElement("error");
+            responseElement.setAttribute("id", Integer.toString(orderId));
+            responseElement.appendChild(this.responseXml.createTextNode(e.toString()));
+            responseParentNode.appendChild(responseElement);
         }
     }
 }
