@@ -43,6 +43,7 @@ public class ServerRunnable implements Runnable {
                 //SQL
 
                 //send ResponseXML8 */
+                return;
             } catch (Exception e) {
                 e.printStackTrace();
             }
