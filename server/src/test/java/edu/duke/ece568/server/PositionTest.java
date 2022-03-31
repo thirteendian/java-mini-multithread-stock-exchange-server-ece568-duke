@@ -51,4 +51,19 @@ public class PositionTest {
         assertDoesNotThrow(()->new Position(jdbc, 0, "NYK", -90).commitToDb());
         assertThrows(IllegalArgumentException.class, ()->new Position(jdbc, 0, "MYK"));
     }
+
+    @Test
+    public void test_getSet() throws ClassNotFoundException, SQLException{
+        PostgreJDBC jdbc = Shared.helper_generateValidJdbc();
+        Shared.cleanAllTables(jdbc);
+
+        Account account = new Account(jdbc, 0, 100);
+        assertDoesNotThrow(()->account.commitToDb());
+
+        Position position1 = new Position(jdbc, 0, "NYK", 100);
+        assertDoesNotThrow(()->position1.commitToDb()); 
+
+        assertEquals(0, position1.getAccountNumber());
+        assertEquals(100, position1.getAmount());
+    }
 }

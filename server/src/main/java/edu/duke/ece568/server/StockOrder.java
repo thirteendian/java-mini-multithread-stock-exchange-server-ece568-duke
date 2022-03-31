@@ -46,13 +46,6 @@ public class StockOrder {
      */
     public StockOrder(PostgreJDBC jdbc, int accountNumber, String symbol, double amount, double limitPrice){
         this(jdbc, -1, accountNumber, symbol, amount, limitPrice, Timestamp.from(Instant.now()), "OPEN");
-
-        if(amount == 0){
-            throw new IllegalArgumentException("cannot create order with amount 0");
-        }
-        if(limitPrice <= 0){
-            throw new IllegalArgumentException("cannot create order with limit price <= 0");
-        }
     }
 
     /**
@@ -68,6 +61,13 @@ public class StockOrder {
      */
     public StockOrder(PostgreJDBC jdbc, int orderId, int accountNumber, String symbol, 
         double amount, double limitPrice, Timestamp issueTime, String status){
+        if(amount == 0){
+            throw new IllegalArgumentException("cannot create order with amount 0");
+        }
+        if(limitPrice <= 0){
+            throw new IllegalArgumentException("cannot create order with limit price <= 0");
+        }
+
         this.jdbc = jdbc;
         this.orderId = orderId;
         this.accountNumber = accountNumber;
@@ -171,6 +171,9 @@ public class StockOrder {
      * @throws SQLException
      */
     public void commitToDb() throws InvalidAlgorithmParameterException, SQLException{
+        if(this.orderId >= 1){
+            throw new InvalidAlgorithmParameterException("the stock order already exists in database, cannot commit again"); 
+        }
         String query = 
             "WITH TEMP AS ( " + 
                 "INSERT INTO STOCK_ORDER (ACCOUNT_NUMBER, SYMBOL, AMOUNT, LIMIT_PRICE, ISSUE_TIME, ORDER_STATUS)" +
@@ -233,7 +236,7 @@ public class StockOrder {
 
         String query =  
             "UPDATE STOCK_ORDER " + 
-            "SET ORDER_STATUS=\'CANCELLED\' " + 
+            "SET ORDER_STATUS=\'CANCELLED\', ISSUE_TIME=\'" + Timestamp.from(Instant.now()) + "\'"+ 
             "WHERE ORDER_ID=" + this.orderId + " " + 
             "AND ORDER_STATUS <> \'CANCELLED\';";
 

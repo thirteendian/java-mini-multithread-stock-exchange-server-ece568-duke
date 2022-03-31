@@ -293,22 +293,18 @@ class RequestXMLParser {
             responseParentNode.appendChild(responseElement);
 
         }
+        catch(NumberFormatException e){
+            this.createErrorElementWithoutAttributes(responseParentNode, e.toString());
+        }
         catch(Exception e){
             this.jdbc.getConnection().rollback();
             
             Element responseElement = this.responseXml.createElement("error");
             responseElement.setAttribute("sym", orderNode.getAttribute("sym"));
-            responseElement.setAttribute("id", orderNode.getAttribute("id"));
+            responseElement.setAttribute("id", Integer.toString(accountNumber));
             responseElement.appendChild(this.responseXml.createTextNode(e.toString()));
             responseParentNode.appendChild(responseElement);
         }
-    }
-
-    protected void createTransactionsStatusElement(Element responseParentNode, int orderId){
-        Element element = this.responseXml.createElement("status");
-        element.setAttribute("id", Integer.toString(orderId));
-        responseParentNode.appendChild(element);
-        responseParentNode = element;
     }
 
     protected void parseOpenOrderStatus(Element responseParentNode, int orderId) throws SQLException{
@@ -326,7 +322,7 @@ class RequestXMLParser {
         ArrayList<StockOrder> stockOrders = StockOrder.getAllStockOrdersByCriteria(this.jdbc, orderId, "CANCELLED");
         if(!stockOrders.isEmpty()){
             for(StockOrder stockOrder: stockOrders){
-                Element responseElement = this.responseXml.createElement("open");
+                Element responseElement = this.responseXml.createElement("canceled");
                 responseElement.setAttribute("shares", Double.toString(stockOrder.getAmount()));
                 responseElement.setAttribute("time", stockOrder.getIssueTime().toString());
                 responseParentNode.appendChild(responseElement);
@@ -337,7 +333,7 @@ class RequestXMLParser {
     protected void parseExecuteddOrderStatus(Element responseParentNode, int orderId) throws SQLException, IllegalAccessException{
         ArrayList<ExecutedOrder> executedOrders = ExecutedOrder.getAllExecutedOrdersByOrderId(jdbc, orderId);
         for(ExecutedOrder executOrder: executedOrders){
-            Element responseElement = this.responseXml.createElement("open");
+            Element responseElement = this.responseXml.createElement("executed");
             responseElement.setAttribute("shares", Double.toString(executOrder.getAmount()));
             responseElement.setAttribute("price", Double.toString(executOrder.getLimitPrice()));
             responseElement.setAttribute("time", executOrder.getIssueTime().toString());
@@ -390,22 +386,10 @@ class RequestXMLParser {
         }
 
         // perform cancellation
-        try{
-            this.performCancelOrder(cancelNode, responseParentNode);
-        }
-        catch(Exception e){
-            this.jdbc.getConnection().rollback();
-            this.createErrorElementWithoutAttributes(responseParentNode, e.toString());
-        }
+        this.performCancelOrder(cancelNode, responseParentNode);
 
         // query cancelled but executed
-        try{
-            this.parseCancelExecuted(cancelNode, responseParentNode);
-        }
-        catch(Exception e){
-            this.jdbc.getConnection().rollback();
-            this.createErrorElementWithoutAttributes(responseParentNode, e.toString());
-        }
+        this.parseCancelExecuted(cancelNode, responseParentNode);
     }
 
     protected void performCancelOrder(Element cancelNode, Element responseParentNode) throws SQLException{

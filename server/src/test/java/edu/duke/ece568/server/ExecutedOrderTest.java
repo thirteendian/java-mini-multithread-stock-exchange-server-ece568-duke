@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import java.security.InvalidAlgorithmParameterException;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Instant;
@@ -29,6 +30,10 @@ public class ExecutedOrderTest {
         ExecutedOrder executedOrder2 = new ExecutedOrder(jdbc, 101, "AMAZ", 90, -20, time);
         assertDoesNotThrow(()->executedOrder1.commitToDb());
         assertDoesNotThrow(()->executedOrder2.commitToDb());
+
+        // error: commit again
+        assertThrows(InvalidAlgorithmParameterException.class, ()->executedOrder1.commitToDb());
+        assertThrows(InvalidAlgorithmParameterException.class, ()->executedOrder2.commitToDb());
 
         // success: query by order_id
         ArrayList<ExecutedOrder> executedOrdersExpected = new ArrayList<>();

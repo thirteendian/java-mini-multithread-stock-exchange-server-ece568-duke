@@ -14,18 +14,34 @@ import org.junit.jupiter.api.Test;
 
 public class StockOrderTest {
     @Test
+    public void test_constructor() throws ClassNotFoundException, SQLException{
+        PostgreJDBC jdbc = Shared.helper_generateValidJdbc();
+        Shared.cleanAllTables(jdbc);
+
+        assertThrows(IllegalArgumentException.class, ()->new StockOrder(jdbc, 0, "SYM", 0, 10));
+        assertThrows(IllegalArgumentException.class, ()->new StockOrder(jdbc, 0, "SYM", -10, -1));
+    }
+
+    @Test
     public void test_commitToDb() throws ClassNotFoundException, SQLException, InvalidAlgorithmParameterException{
         PostgreJDBC jdbc = Shared.helper_generateValidJdbc();
         Shared.cleanAllTables(jdbc);
 
+        // success: create account and order
         Account account = new Account(jdbc, 0, 100);
         assertDoesNotThrow(()->account.commitToDb());
         StockOrder buyOrder = new StockOrder(jdbc, 0, "NYK", 100, 100);
         assertDoesNotThrow(()->buyOrder.commitToDb());
 
+        // success: new order PK = max(PL)
         ResultSet resultSet = jdbc.executeQueryStatement("SELECT MAX(ORDER_ID) AS ORDER_ID FROM STOCK_ORDER;");
         assertTrue(resultSet.next());
         assertEquals(resultSet.getInt("ORDER_ID"), buyOrder.getOrderId());
+        
+        assertEquals(0, buyOrder.getAccountNumber());
+
+        // error: commit again
+        assertThrows(InvalidAlgorithmParameterException.class, ()->buyOrder.commitToDb());
     }
 
     @Test
@@ -37,9 +53,12 @@ public class StockOrderTest {
         Account account = new Account(jdbc, 0, 100);
         assertDoesNotThrow(()->account.commitToDb());
         StockOrder buyOrder = new StockOrder(jdbc, 0, "NYK", 100, 100);
-        assertDoesNotThrow(()->buyOrder.commitToDb());
 
-        // success: add amount 
+        // error: update when not commited
+        assertThrows(InvalidAlgorithmParameterException.class, ()->buyOrder.updateOrderAmount(10));
+
+        // success: commit and add amount 
+        assertDoesNotThrow(()->buyOrder.commitToDb());
         assertDoesNotThrow(()->buyOrder.updateOrderAmount(10));
         assertEquals(110, buyOrder.getAmount());
 
@@ -305,8 +324,11 @@ public class StockOrderTest {
         assertDoesNotThrow(()->account2.commitToDb());
         assertDoesNotThrow(()->account3.commitToDb());
 
-        // success: sale order amount > buy order amount
+        // error: match when not committed
         StockOrder saleOrder = new StockOrder(jdbc, 0, "NYK", -10, 100);
+        assertThrows(InvalidAlgorithmParameterException.class, ()->saleOrder.matchOrder());
+        
+        // success: commit and match, sale order amount > buy order amount
         assertDoesNotThrow(()->saleOrder.commitToDb());
         StockOrder buyOrder1 = new StockOrder(jdbc, 1, "NYK", 2, 110);
         StockOrder buyOrder2 = new StockOrder(jdbc, 2, "NYK", 3, 120);

@@ -5,7 +5,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import java.io.IOException;
 import java.security.InvalidAlgorithmParameterException;
 import java.sql.SQLException;
+import java.sql.Timestamp;
 import java.time.Instant;
+import java.util.regex.Pattern;
 
 import javax.xml.parsers.ParserConfigurationException;
 import javax.xml.transform.TransformerException;
@@ -23,6 +25,22 @@ public class RequestXMLParserTest {
 
         RequestXMLParser parser = new RequestXMLParser(jdbc, request);
         String response = parser.parseAndProcessRequest();
+        System.out.println(response);
+
+        assertEquals(expectedResponse, response);
+    }
+
+    private void helper_responseComparatorWithoutCleaning(String request, String expectedResponse) throws ClassNotFoundException, 
+        SQLException, ParserConfigurationException, SAXException, IOException, TransformerException{
+
+        PostgreJDBC jdbc = Shared.helper_generateValidJdbc();
+
+        RequestXMLParser parser = new RequestXMLParser(jdbc, request);
+        String response = parser.parseAndProcessRequest();
+
+        expectedResponse = expectedResponse.replaceAll("time=\".*?\"", "");
+        response = response.replaceAll("time=\".*?\"", "");
+
         System.out.println(response);
 
         assertEquals(expectedResponse, response);
@@ -354,9 +372,9 @@ public class RequestXMLParserTest {
         this.helper_responseComparator(request, expected);
     }
 
-    /*---------------------------------------- testcases for create ----------------------------------------*/
+    /*---------------------------------------- testcases for illegal transactions ----------------------------------------*/
     @Test
-    public void test_parseAndProcessRequest_transactions() throws ParserConfigurationException, SAXException, 
+    public void test_parseAndProcessRequest_transactionsWrongAttributes() throws ParserConfigurationException, SAXException, 
         IOException, ClassNotFoundException, SQLException, InvalidAlgorithmParameterException, TransformerException{
 
         PostgreJDBC jdbc = Shared.helper_generateValidJdbc();
@@ -364,16 +382,288 @@ public class RequestXMLParserTest {
 
         Account account = new Account(jdbc, 0, 100);
         account.commitToDb();
-        StockOrder order = new StockOrder(jdbc, 1, 0, "AAZ", 10, 20, java.sql.Timestamp.from(Instant.now()), "OPEN");
-        order.commitToDb();
 
-        String xml = 
+        String request = 
+        "<transactions i=\"0\">" + 
+            "<order sym=\"SYM\" amount=\"10\" limit=\"5.2\"/>" + 
+        "</transactions>";
+        String expect = "<results><error>transaction must have attribute id</error></results>";
+        this.helper_responseComparatorWithoutCleaning(request, expect);
+    }
+
+    @Test
+    public void test_parseAndProcessRequest_transactionsNoChildren() throws ParserConfigurationException, SAXException, 
+        IOException, ClassNotFoundException, SQLException, InvalidAlgorithmParameterException, TransformerException{
+
+        PostgreJDBC jdbc = Shared.helper_generateValidJdbc();
+        Shared.cleanAllTables(jdbc);
+
+        Account account = new Account(jdbc, 0, 100);
+        account.commitToDb();
+
+        String request = 
+        "<transactions id=\"0\">" + 
+        "</transactions>";
+        String expect = "<results><error>transaction must have 1 or more elements</error></results>";
+        this.helper_responseComparatorWithoutCleaning(request, expect);
+    }
+
+    @Test
+    public void test_parseAndProcessRequest_transactionsWrongChildren() throws ParserConfigurationException, SAXException, 
+        IOException, ClassNotFoundException, SQLException, InvalidAlgorithmParameterException, TransformerException{
+
+        PostgreJDBC jdbc = Shared.helper_generateValidJdbc();
+        Shared.cleanAllTables(jdbc);
+
+        Account account = new Account(jdbc, 0, 100);
+        account.commitToDb();
+
+        String request = 
+        "<transactions id=\"0\">" + 
+            "<orde sym=\"SYM\" amount=\"10\" limit=\"5.2\"/>" + 
+        "</transactions>";
+        String expect = "<results><error>transaction must have children order, query or cancel</error></results>";
+        this.helper_responseComparatorWithoutCleaning(request, expect);
+    }
+
+    /*---------------------------------------- testcases for order ----------------------------------------*/
+    @Test
+    public void test_parseAndProcessRequest_transactionsOrderWrongAttributes() throws ParserConfigurationException, SAXException, 
+        IOException, ClassNotFoundException, SQLException, InvalidAlgorithmParameterException, TransformerException{
+
+        PostgreJDBC jdbc = Shared.helper_generateValidJdbc();
+        Shared.cleanAllTables(jdbc);
+
+        Account account = new Account(jdbc, 0, 100);
+        account.commitToDb();
+
+        String request = 
+        "<transactions id=\"0\">" + 
+            "<order sy=\"SYM\" amount=\"10\" limit=\"5.2\"/>" + 
+        "</transactions>";
+        String expect = "<results><error>order must have attribute sym</error></results>";
+        this.helper_responseComparator(request, expect);
+
+        request = 
+        "<transactions id=\"0\">" + 
+            "<order sym=\"SYM\" amoun=\"10\" limit=\"5.2\"/>" + 
+        "</transactions>";
+        expect = "<results><error>order must have attribute amount</error></results>";
+        this.helper_responseComparator(request, expect);
+
+        request = 
+        "<transactions id=\"0\">" + 
+            "<order sym=\"SYM\" amount=\"10\" limi=\"5.2\"/>" + 
+        "</transactions>";
+        expect = "<results><error>order must have attribute limit</error></results>";
+        this.helper_responseComparator(request, expect);
+    }
+
+    @Test
+    public void test_parseAndProcessRequest_transactionsOrderWrongNumberFormat() throws ParserConfigurationException, SAXException, 
+        IOException, ClassNotFoundException, SQLException, InvalidAlgorithmParameterException, TransformerException{
+
+        PostgreJDBC jdbc = Shared.helper_generateValidJdbc();
+        Shared.cleanAllTables(jdbc);
+
+        Account account = new Account(jdbc, 0, 100);
+        account.commitToDb();
+
+        String request = 
+        "<transactions id=\"0\">" + 
+            "<order sym=\"SYM\" amount=\"1x\" limit=\"5.2\"/>" + 
+        "</transactions>";
+        String expect = "<results><error>java.lang.NumberFormatException: For input string: \"1x\"</error></results>";
+        this.helper_responseComparator(request, expect);
+    }
+
+    @Test
+    public void test_parseAndProcessRequest_transactionsIllegalOrder() throws ParserConfigurationException, SAXException, 
+        IOException, ClassNotFoundException, SQLException, InvalidAlgorithmParameterException, TransformerException{
+
+        PostgreJDBC jdbc = Shared.helper_generateValidJdbc();
+        Shared.cleanAllTables(jdbc);
+
+        Account account = new Account(jdbc, 0, 100);
+        account.commitToDb();
+
+        String request = 
+        "<transactions id=\"0\">" + 
+            "<order sym=\"SYM\" amount=\"-10\" limit=\"5.2\"/>" + 
+        "</transactions>";
+        String expect = 
+            "<results>" + 
+                "<error id=\"0\" sym=\"SYM\">" + 
+                    "java.security.InvalidAlgorithmParameterException: " + 
+                    "this account does not have enough SYM stock to place this sale order" + 
+                "</error>" + 
+            "</results>";
+        this.helper_responseComparatorWithoutCleaning(request, expect);
+    }
+
+    @Test
+    public void test_parseAndProcessRequest_transactionsSuccess() throws ParserConfigurationException, SAXException, 
+        IOException, ClassNotFoundException, SQLException, InvalidAlgorithmParameterException, TransformerException{
+
+        PostgreJDBC jdbc = Shared.helper_generateValidJdbc();
+        Shared.cleanAllTables(jdbc);
+
+        Account account = new Account(jdbc, 0, 100);
+        account.commitToDb();
+        
+        Position position = new Position(jdbc, 0, "AMAZ", 100);
+        position.commitToDb();
+
+        StockOrder placeHolder = new StockOrder(jdbc, 0, "XXX", 0.1, 1.0);
+        placeHolder.commitToDb();
+
+        String request = 
         "<transactions id=\"0\">" + 
             "<order sym=\"SYM\" amount=\"10\" limit=\"5.2\"/>" + 
-            "<query id=\"" +order.getOrderId() + "\"/>" + 
-            "<cancel id=\"2\"/>" + 
+            "<order sym=\"AMAZ\" amount=\"-10\" limit=\"15\"/>" + 
         "</transactions>";
-        RequestXMLParser parser = new RequestXMLParser(jdbc, xml);
-        parser.parseAndProcessRequest();
+        String expect = 
+            "<results>" + 
+                "<opened amount=\"10.0\" id=\"" + (placeHolder.getOrderId() + 1) + "\" limit=\"5.2\" sym=\"SYM\"/>" + 
+                "<opened amount=\"-10.0\" id=\"" + (placeHolder.getOrderId() + 2) +"\" limit=\"15.0\" sym=\"AMAZ\"/>" + 
+            "</results>";
+        this.helper_responseComparatorWithoutCleaning(request, expect);
+    }
+
+    /*---------------------------------------- testcases for query ----------------------------------------*/
+    @Test
+    public void test_parseAndProcessRequest_queryWrongAttributes() throws ParserConfigurationException, SAXException, 
+        IOException, ClassNotFoundException, SQLException, InvalidAlgorithmParameterException, TransformerException{
+    
+        String request = 
+            "<transactions id=\"0\">" + 
+                "<query d=\"0\"/>" + 
+            "</transactions>";
+        
+        String expected = "<results><error>order must have attribute id</error></results>";
+
+        this.helper_responseComparator(request, expected);
+    }
+
+    @Test
+    public void test_parseAndProcessRequest_queryWrongNumberFormat() throws ParserConfigurationException, SAXException, 
+        IOException, ClassNotFoundException, SQLException, InvalidAlgorithmParameterException, TransformerException{
+    
+        String request = 
+            "<transactions id=\"0\">" + 
+                "<query id=\"XD\"/>" + 
+                "<cancel id=\"0\"/>" + 
+            "</transactions>";
+        
+        String expected = 
+            "<results>" + 
+                "<error>java.lang.NumberFormatException: For input string: \"XD\"</error>" + 
+                "<canceled id=\"0\"><error id=\"0\">java.lang.IllegalArgumentException: cannot find order with orderId 0</error>" + 
+                "</canceled>" + 
+            "</results>";
+
+        this.helper_responseComparator(request, expected);
+    }
+
+    @Test
+    public void test_parseAndProcessRequest_querySuccess() throws ParserConfigurationException, SAXException, 
+        IOException, ClassNotFoundException, SQLException, InvalidAlgorithmParameterException, TransformerException{
+
+        PostgreJDBC jdbc = Shared.helper_generateValidJdbc();
+        Shared.cleanAllTables(jdbc);
+
+        Account account = new Account(jdbc, 0, 100);
+        Account account2 = new Account(jdbc, 1, 100);
+        account.commitToDb();
+        account2.commitToDb();
+
+        Position position = new Position(jdbc, 1, "SYM", 10);
+        position.commitToDb();
+
+        StockOrder buyOrder = new StockOrder(jdbc, 0, "SYM", 10, 5);
+        buyOrder.commitToDb();
+        StockOrder saleOrder = new StockOrder(jdbc, 1, "SYM", -5, 3);
+        saleOrder.commitToDb();
+        saleOrder.matchOrder();
+
+        StockOrder saleOrder2 = new StockOrder(jdbc, 1, "SYM", -3, 3);
+        saleOrder2.commitToDb();
+        saleOrder2.matchOrder();
+
+        String request = 
+        "<transactions id=\"0\">" + 
+            "<cancel id=\"" + buyOrder.getOrderId() + "\"/>" + 
+            "<query id=\"" +buyOrder.getOrderId() + "\"/>" + 
+        "</transactions>";
+        
+        String expected = 
+            "<results>" + 
+                "<canceled id=\"" + buyOrder.getOrderId() + "\">" + 
+                    "<canceled shares=\"2.0\" />" + 
+                "</canceled>" + 
+                "<executed price=\"5.0\" shares=\"5.0\" />" + 
+                "<executed price=\"5.0\" shares=\"3.0\" />" + 
+                "<status id=\"" + buyOrder.getOrderId() + "\">" + 
+                    "<canceled shares=\"2.0\" />" + 
+                    "<executed price=\"5.0\" shares=\"5.0\" />" + 
+                    "<executed price=\"5.0\" shares=\"3.0\" />" + 
+                "</status>" + 
+            "</results>";
+        this.helper_responseComparatorWithoutCleaning(request, expected);
+    }
+
+    /*---------------------------------------- testcases for cancel ----------------------------------------*/
+    @Test
+    public void test_parseAndProcessRequest_cancelWrongAttributes() throws ParserConfigurationException, SAXException, 
+        IOException, ClassNotFoundException, SQLException, InvalidAlgorithmParameterException, TransformerException{
+    
+        String request = 
+            "<transactions id=\"0\">" + 
+                "<cancel Xd=\"0\"/>" + 
+            "</transactions>";
+        
+        String expected = "<results><error>order must have attribute id</error></results>";
+
+        this.helper_responseComparator(request, expected);
+    }
+
+    @Test
+    public void test_parseAndProcessRequest_cancelWrongNumberFormat() throws ParserConfigurationException, SAXException, 
+        IOException, ClassNotFoundException, SQLException, InvalidAlgorithmParameterException, TransformerException{
+    
+        String request = 
+            "<transactions id=\"0\">" + 
+                "<cancel id=\"0abc\"/>" + 
+            "</transactions>";
+        
+        String expected = 
+            "<results>" + 
+                "<error>" + 
+                    "java.lang.NumberFormatException: For input string: \"0abc\"" + 
+                "</error>" + 
+            "</results>";
+
+        this.helper_responseComparator(request, expected);
+    }
+
+    @Test
+    public void test_parseAndProcessRequest_cancelNonExisting() throws ParserConfigurationException, SAXException, 
+        IOException, ClassNotFoundException, SQLException, InvalidAlgorithmParameterException, TransformerException{
+    
+        String request = 
+            "<transactions id=\"0\">" + 
+                "<cancel id=\"110231\"/>" + 
+            "</transactions>";
+        
+        String expected = 
+            "<results>" + 
+                "<canceled id=\"110231\">" + 
+                    "<error id=\"110231\">" + 
+                        "java.lang.IllegalArgumentException: cannot find order with orderId 110231" + 
+                    "</error>" + 
+                "</canceled>" + 
+            "</results>";
+
+        this.helper_responseComparator(request, expected);
     }
 }
