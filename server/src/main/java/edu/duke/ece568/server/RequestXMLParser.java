@@ -17,6 +17,7 @@ import javax.xml.transform.TransformerFactory;
 import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
 
+import org.postgresql.ds.PGConnectionPoolDataSource;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
@@ -25,12 +26,12 @@ import org.xml.sax.SAXException;
 
 class RequestXMLParser {
     private String originalRequest;
-    private PostgreJDBC jdbc;
+    private PGConnectionPoolDataSource connectionPool;
     private Document responseXml;
 
-    public RequestXMLParser(PostgreJDBC jdbc, String originalRequest){
+    public RequestXMLParser(PGConnectionPoolDataSource connectionPool, String originalRequest){
         this.originalRequest = originalRequest;
-        this.jdbc = jdbc;
+        this.connectionPool = connectionPool;
         this.responseXml = null;
     }
 
@@ -131,14 +132,17 @@ class RequestXMLParser {
             this.createErrorElementWithoutAttributes(responseParentNode, errorMessage);
             return;
         }
+
+        PostgreJDBC jdbc = new PostgreJDBC(this.connectionPool.getConnection());
+
         try{
             int accountNumber = Integer.parseInt(accountNode.getAttribute("id"));
             double balance = Double.parseDouble(accountNode.getAttribute("balance"));
 
-            this.jdbc.getConnection().setAutoCommit(false);
+            jdbc.getConnection().setAutoCommit(false);
             Account account = new Account(jdbc, accountNumber, balance);
             account.commitToDb();
-            this.jdbc.getConnection().commit();
+            jdbc.getConnection().commit();
             
             // generate message
             Element element = this.responseXml.createElement("created");
@@ -150,13 +154,16 @@ class RequestXMLParser {
             this.createErrorElementWithoutAttributes(responseParentNode, e.toString());
         }
         catch(Exception e){
-            this.jdbc.getConnection().rollback();
+            jdbc.getConnection().rollback();
             
             // generate error message
             Element element = responseXml.createElement("error");
             element.setAttribute("id", accountNode.getAttribute("id"));
             element.appendChild(responseXml.createTextNode(e.toString()));
             responseParentNode.appendChild(element);
+        }
+        finally{
+            jdbc.getConnection().close();
         }
     }
 
@@ -188,14 +195,17 @@ class RequestXMLParser {
                 element = (Element)element.getNextSibling();
                 continue;
             }
+
+            PostgreJDBC jdbc = new PostgreJDBC(this.connectionPool.getConnection());
+
             try{
                 int accountNumber = Integer.parseInt(element.getAttribute("id"));
                 double amount = Double.parseDouble(element.getTextContent());     
 
-                this.jdbc.getConnection().setAutoCommit(false);
+                jdbc.getConnection().setAutoCommit(false);
                 Position position = new Position(jdbc, accountNumber, symbol, amount);
                 position.commitToDb();
-                this.jdbc.getConnection().commit();
+                jdbc.getConnection().commit();
 
                 // generate message
                 Element responseElement = this.responseXml.createElement("created");
@@ -203,8 +213,15 @@ class RequestXMLParser {
                 responseElement.setAttribute("id", Integer.toString(accountNumber));
                 responseParentNode.appendChild(responseElement);
             }
+            catch(NumberFormatException e){
+                Element responseElement = this.responseXml.createElement("error");
+                responseElement.setAttribute("sym", symbol);
+                responseElement.setAttribute("id", element.getAttribute("id"));
+                responseElement.appendChild(this.responseXml.createTextNode(e.toString()));
+                responseParentNode.appendChild(responseElement);
+            }
             catch(Exception e){
-                this.jdbc.getConnection().rollback();
+                jdbc.getConnection().rollback();
 
                 // generate message
                 Element responseElement = this.responseXml.createElement("error");
@@ -212,6 +229,9 @@ class RequestXMLParser {
                 responseElement.setAttribute("id", element.getAttribute("id"));
                 responseElement.appendChild(this.responseXml.createTextNode(e.toString()));
                 responseParentNode.appendChild(responseElement);
+            }
+            finally{
+                jdbc.getConnection().close();
             }
 
             element = (Element)element.getNextSibling();
@@ -269,15 +289,18 @@ class RequestXMLParser {
             this.createErrorElementWithoutAttributes(responseParentNode, errorMessage);
             return;
         }
+
+        PostgreJDBC jdbc = new PostgreJDBC(this.connectionPool.getConnection());
+
         try{
             String symbol = orderNode.getAttribute("sym");
             double amount = Double.parseDouble(orderNode.getAttribute("amount"));
             double limitPrice = Double.parseDouble(orderNode.getAttribute("limit"));
 
-            this.jdbc.getConnection().setAutoCommit(false);
+            jdbc.getConnection().setAutoCommit(false);
             Account account = new Account(jdbc, accountNumber);
             int newOrderId = account.placeOrder(symbol, amount, limitPrice);
-            this.jdbc.getConnection().commit();
+            jdbc.getConnection().commit();
 
             // create message
             Element responseElement = this.responseXml.createElement("opened");
@@ -292,7 +315,7 @@ class RequestXMLParser {
             this.createErrorElementWithoutAttributes(responseParentNode, e.toString());
         }
         catch(Exception e){
-            this.jdbc.getConnection().rollback();
+            jdbc.getConnection().rollback();
             
             Element responseElement = this.responseXml.createElement("error");
             responseElement.setAttribute("sym", orderNode.getAttribute("sym"));
@@ -300,10 +323,13 @@ class RequestXMLParser {
             responseElement.appendChild(this.responseXml.createTextNode(e.toString()));
             responseParentNode.appendChild(responseElement);
         }
+        finally{
+            jdbc.getConnection().close();
+        }
     }
 
-    protected void parseOpenOrderStatus(Element responseParentNode, int orderId) throws SQLException{
-        ArrayList<StockOrder> stockOrders = StockOrder.getAllStockOrdersByCriteria(this.jdbc, orderId, "OPEN");
+    protected void parseOpenOrderStatus(PostgreJDBC jdbc, Element responseParentNode, int orderId) throws SQLException{
+        ArrayList<StockOrder> stockOrders = StockOrder.getAllStockOrdersByCriteria(jdbc, orderId, "OPEN");
         if(!stockOrders.isEmpty()){
             for(StockOrder stockOrder: stockOrders){
                 Element responseElement = this.responseXml.createElement("open");
@@ -313,8 +339,8 @@ class RequestXMLParser {
         }
     }
 
-    protected void parseCancelledOrderStatus(Element responseParentNode, int orderId) throws SQLException{
-        ArrayList<StockOrder> stockOrders = StockOrder.getAllStockOrdersByCriteria(this.jdbc, orderId, "CANCELLED");
+    protected void parseCancelledOrderStatus(PostgreJDBC jdbc, Element responseParentNode, int orderId) throws SQLException{
+        ArrayList<StockOrder> stockOrders = StockOrder.getAllStockOrdersByCriteria(jdbc, orderId, "CANCELLED");
         if(!stockOrders.isEmpty()){
             for(StockOrder stockOrder: stockOrders){
                 Element responseElement = this.responseXml.createElement("canceled");
@@ -325,7 +351,7 @@ class RequestXMLParser {
         }
     }
 
-    protected void parseExecuteddOrderStatus(Element responseParentNode, int orderId) throws SQLException, IllegalAccessException{
+    protected void parseExecuteddOrderStatus(PostgreJDBC jdbc, Element responseParentNode, int orderId) throws SQLException, IllegalAccessException{
         ArrayList<ExecutedOrder> executedOrders = ExecutedOrder.getAllExecutedOrdersByOrderId(jdbc, orderId);
         for(ExecutedOrder executOrder: executedOrders){
             Element responseElement = this.responseXml.createElement("executed");
@@ -343,6 +369,9 @@ class RequestXMLParser {
             this.createErrorElementWithoutAttributes(responseParentNode, errorMessage);
             return;
         }
+
+        PostgreJDBC jdbc = new PostgreJDBC(this.connectionPool.getConnection());
+
         try{
             int orderId = Integer.parseInt(queryNode.getAttribute("id"));
 
@@ -351,13 +380,13 @@ class RequestXMLParser {
             responseParentNode.appendChild(statusElement);
             
             // opened orders
-            this.parseOpenOrderStatus(statusElement, orderId);
+            this.parseOpenOrderStatus(jdbc, statusElement, orderId);
 
             // cancelled orders
-            this.parseCancelledOrderStatus(statusElement, orderId);
+            this.parseCancelledOrderStatus(jdbc, statusElement, orderId);
 
             // execited orders
-            this.parseExecuteddOrderStatus(statusElement, orderId);
+            this.parseExecuteddOrderStatus(jdbc, statusElement, orderId);
 
         }
         catch(Exception e){
@@ -393,11 +422,13 @@ class RequestXMLParser {
         statusElement.setAttribute("id", Integer.toString(orderId));
         responseParentNode.appendChild(statusElement);
 
+        PostgreJDBC jdbc = new PostgreJDBC(this.connectionPool.getConnection());
+
         try{
-            this.jdbc.getConnection().setAutoCommit(false);
+            jdbc.getConnection().setAutoCommit(false);
             StockOrder stockOrder = new StockOrder(jdbc, orderId);
             stockOrder.cancelOrder();
-            this.jdbc.getConnection().commit();
+            jdbc.getConnection().commit();
 
             // generate message
             Element element = this.responseXml.createElement("canceled");
@@ -406,20 +437,25 @@ class RequestXMLParser {
             statusElement.appendChild(element);
         }
         catch(Exception e){
-            this.jdbc.getConnection().rollback();
+            jdbc.getConnection().rollback();
 
             Element responseElement = this.responseXml.createElement("error");
             responseElement.setAttribute("id", Integer.toString(orderId));
             responseElement.appendChild(this.responseXml.createTextNode(e.toString()));
             statusElement.appendChild(responseElement);
         }
+        finally{
+            jdbc.getConnection().close();
+        }
     }
 
-    protected void parseCancelExecuted(Element cancelNode, Element responseParentNode){
+    protected void parseCancelExecuted(Element cancelNode, Element responseParentNode) throws SQLException{
         int orderId = Integer.parseInt(cancelNode.getAttribute("id"));
         
+        PostgreJDBC jdbc = new PostgreJDBC(this.connectionPool.getConnection());
+
         try{
-            ArrayList<ExecutedOrder> executedOrders = ExecutedOrder.getAllExecutedOrdersByOrderId(this.jdbc, orderId);
+            ArrayList<ExecutedOrder> executedOrders = ExecutedOrder.getAllExecutedOrdersByOrderId(jdbc, orderId);
             for(ExecutedOrder executOrder: executedOrders){
                 Element responseElement = this.responseXml.createElement("executed");
                 responseElement.setAttribute("shares", Double.toString(executOrder.getAmount()));

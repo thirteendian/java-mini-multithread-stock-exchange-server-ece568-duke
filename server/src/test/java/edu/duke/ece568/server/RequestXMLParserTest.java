@@ -20,7 +20,7 @@ public class RequestXMLParserTest {
 
         Shared.cleanAllTables(jdbc);
 
-        RequestXMLParser parser = new RequestXMLParser(jdbc, request);
+        RequestXMLParser parser = new RequestXMLParser(Shared.generateConnectionPool(), request);
         String response = parser.parseAndProcessRequest();
         System.out.println(response);
 
@@ -32,7 +32,7 @@ public class RequestXMLParserTest {
 
         PostgreJDBC jdbc = Shared.helper_generateValidJdbc();
 
-        RequestXMLParser parser = new RequestXMLParser(jdbc, request);
+        RequestXMLParser parser = new RequestXMLParser(Shared.generateConnectionPool(), request);
         String response = parser.parseAndProcessRequest();
 
         expectedResponse = expectedResponse.replaceAll("time=\".*?\"", "");

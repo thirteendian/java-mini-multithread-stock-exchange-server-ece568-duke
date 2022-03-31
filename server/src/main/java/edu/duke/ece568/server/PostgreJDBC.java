@@ -29,6 +29,14 @@ public class PostgreJDBC {
         );
     }
 
+    /**
+     * get a connection from outside (possibly a connection pool)
+     * @param conn
+     */
+    public PostgreJDBC(Connection conn){
+        this.conn = conn;
+    }
+
     public Connection getConnection(){
         return this.conn;
     }
