@@ -21,6 +21,12 @@ public class ServerRunnable implements Runnable {
     public String recvMsg() throws IOException {
         InputStream in = clientSocket.getInputStream();
         var reader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
+        StringBuilder stringBuilder = new StringBuilder();
+        String line = "";
+        while((line = reader.readLine())!=null){
+            stringBuilder.append(line);
+            stringBuilder.append("\n");
+        }
         return reader.readLine();
     }
 
