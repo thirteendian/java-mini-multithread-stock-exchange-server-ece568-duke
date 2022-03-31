@@ -40,13 +40,13 @@ public class PostgreJDBC {
         this.createArchiveTable();
     }
 
-    protected void executeUpdateStatement(String query) throws SQLException{
+    protected synchronized void executeUpdateStatement(String query) throws SQLException{
         Statement statement = this.conn.createStatement();
         statement.executeUpdate(query);
         statement.close();
     }
 
-    protected ResultSet executeQueryStatement(String query) throws SQLException{
+    protected synchronized ResultSet executeQueryStatement(String query) throws SQLException{
         Statement statement = this.conn.createStatement();
         ResultSet resultSet = statement.executeQuery(query);
         return resultSet;

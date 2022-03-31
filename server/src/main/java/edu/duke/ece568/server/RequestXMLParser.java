@@ -94,7 +94,6 @@ class RequestXMLParser {
                 String errorMessage = "root node must be create or transactions";
                 this.createErrorElementWithoutAttributes(responseRoot, errorMessage);
             }
-            this.printXml(responseXml);
             return this.getResponse();
         }
         catch(Exception e){
@@ -135,7 +134,6 @@ class RequestXMLParser {
         try{
             int accountNumber = Integer.parseInt(accountNode.getAttribute("id"));
             double balance = Double.parseDouble(accountNode.getAttribute("balance"));
-            System.out.print(accountNumber  + ", " + balance + "\n");
 
             this.jdbc.getConnection().setAutoCommit(false);
             Account account = new Account(jdbc, accountNumber, balance);
@@ -159,8 +157,6 @@ class RequestXMLParser {
             element.setAttribute("id", accountNode.getAttribute("id"));
             element.appendChild(responseXml.createTextNode(e.toString()));
             responseParentNode.appendChild(element);
-
-            System.out.print(e + "\n");
         }
     }
 
@@ -277,7 +273,6 @@ class RequestXMLParser {
             String symbol = orderNode.getAttribute("sym");
             double amount = Double.parseDouble(orderNode.getAttribute("amount"));
             double limitPrice = Double.parseDouble(orderNode.getAttribute("limit"));
-            System.out.print(accountNumber + ", " + symbol + ", " + amount + ", " + limitPrice + "\n");
 
             this.jdbc.getConnection().setAutoCommit(false);
             Account account = new Account(jdbc, accountNumber);

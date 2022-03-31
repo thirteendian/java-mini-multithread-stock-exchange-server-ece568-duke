@@ -6,6 +6,10 @@ package edu.duke.ece568.client;
 import java.io.*;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
+import java.sql.Timestamp;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.concurrent.TimeUnit;
 
 public class Client{
     private final String host;
@@ -39,18 +43,41 @@ public class Client{
         return this.reader.readLine();
     }
 
+    public void disconnect() throws IOException{
+        this.socket.close();
+    }
+
     public static void main(String[] args) {
-
-        //Connect
-        try{
-            Client myClient = new Client("127.0.0.1");
-
-        } catch (Exception e) {
-            e.printStackTrace();
+        ArrayList<Thread> threadPool = new ArrayList<>();
+        for(int i = 0; i < 5; i++){
+            try {
+                Client client = new Client("127.0.0.1");
+                ClientRunnable clientRunnable = new ClientRunnable(client.socket);
+                Thread t = new Thread(clientRunnable);
+                threadPool.add(t);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
         }
-        //Send Message
 
+        Timestamp timeStart = Timestamp.from(Instant.now());
 
+        for(Thread t: threadPool){
+            t.start();
+        }
 
+        for(Thread t: threadPool){
+            try {
+                t.join();
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
+
+        Timestamp timeEnd = Timestamp.from(Instant.now());
+        
+        long diff = timeEnd.getTime() - timeStart.getTime();
+        long seconds = TimeUnit.MILLISECONDS.toSeconds(diff);
+        System.out.println("Finished 100 queries in " + seconds + " seconds");
     }
 }

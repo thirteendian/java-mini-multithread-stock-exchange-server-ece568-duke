@@ -3,8 +3,11 @@ package edu.duke.ece568.server;
 import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.sql.SQLException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+
+import javax.xml.bind.JAXBElement;
 
 
 class Server {
@@ -34,8 +37,12 @@ class Server {
     }
 
 
-    public static void main(String[] args) throws IOException {
+    public static void main(String[] args) throws IOException, ClassNotFoundException, SQLException {
 
+        PostgreJDBC jdbc = new PostgreJDBC("localhost", "5432", "ece568_hw4", "postgres", "passw0rd");
+        jdbc.createTablesIfNotExist();
+        jdbc.getConnection().close();
+    
         Server myServer = new Server();
 
         while (true) {

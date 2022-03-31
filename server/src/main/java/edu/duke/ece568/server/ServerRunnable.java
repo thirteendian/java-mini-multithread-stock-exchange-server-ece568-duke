@@ -28,13 +28,15 @@ public class ServerRunnable implements Runnable {
     public void run() {
         while (true) {
             try {
-                sendMsg("type your input:");
+                // sendMsg("type your input:");
                 PostgreJDBC jdbc = new PostgreJDBC("localhost", "5432", "ece568_hw4", "postgres", "passw0rd");
 
                 String request = recvMsg();
                 RequestXMLParser parser = new RequestXMLParser(jdbc, request);
                 String response = parser.parseAndProcessRequest();
                 sendMsg(response);
+
+                jdbc.getConnection().close();
 
             } catch (Exception e) {
                 e.printStackTrace();
