@@ -159,7 +159,7 @@ public class Account {
             this.tryAddOrRemoveFromBalance(-1*(amount*limitPrice));
             StockOrder newOrder = new StockOrder(this.jdbc, this.accountNumber, symbol, amount, limitPrice);
             newOrder.commitToDb();
-            // newOrder.matchOrder();
+            newOrder.matchOrder();
             return newOrder.getOrderId();
         }
         else{
@@ -171,7 +171,7 @@ public class Account {
             newPosition.commitToDb();
             StockOrder newOrder = new StockOrder(this.jdbc, this.accountNumber, symbol, amount, limitPrice);
             newOrder.commitToDb();
-            // newOrder.matchOrder();
+            newOrder.matchOrder();
             return newOrder.getOrderId();
         }
     }

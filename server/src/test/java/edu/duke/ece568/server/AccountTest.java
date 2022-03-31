@@ -137,9 +137,14 @@ public class AccountTest {
 
         // success: create account and some positions
         Account account = new Account(jdbc, 0, 1000);
+        Account account2 = new Account(jdbc, 1, 1000);
         assertDoesNotThrow(()->account.commitToDb());
+        assertDoesNotThrow(()->account2.commitToDb());
+
         Position position = new Position(jdbc, 0, "NYK", 10);
         assertDoesNotThrow(()->position.commitToDb());
+
+        assertDoesNotThrow(()->account2.placeOrder("NYK", 5, 30));
 
         // success: place a buy order
         assertDoesNotThrow(()->account.placeOrder("NYK", 10, 12));
