@@ -29,7 +29,8 @@ public class ServerRunnable implements Runnable {
         while (true) {
             try {
                 // sendMsg("type your input:");
-                PostgreJDBC jdbc = new PostgreJDBC("localhost", "5432", "ece568_hw4", "postgres", "passw0rd");
+                // PostgreJDBC jdbc = new PostgreJDBC("localhost", "5432", "ece568_hw4", "postgres", "passw0rd");
+                PostgreJDBC jdbc = new PostgreJDBC("db", "5432", "postgres", "postgres", "postgres");
 
                 String request = recvMsg();
                 RequestXMLParser parser = new RequestXMLParser(jdbc, request);

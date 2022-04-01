@@ -32,7 +32,8 @@ class Server {
 
     public static void main(String[] args) throws IOException, ClassNotFoundException, SQLException {
 
-        PostgreJDBC jdbc = new PostgreJDBC("localhost", "5432", "ece568_hw4", "postgres", "passw0rd");
+        // PostgreJDBC jdbc = new PostgreJDBC("localhost", "5432", "ece568_hw4", "postgres", "passw0rd");
+        PostgreJDBC jdbc = new PostgreJDBC("db", "5432", "postgres", "postgres", "postgres");
         jdbc.createTablesIfNotExist();
         jdbc.getConnection().close();
     
