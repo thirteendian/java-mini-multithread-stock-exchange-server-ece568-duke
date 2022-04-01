@@ -418,9 +418,6 @@ class RequestXMLParser {
 
     protected void performCancelOrder(Element cancelNode, Element responseParentNode, int accountNumber) throws SQLException{
         int orderId = Integer.parseInt(cancelNode.getAttribute("id"));
-        // Element statusElement = this.responseXml.createElement("canceled");
-        // statusElement.setAttribute("id", Integer.toString(orderId));
-        // responseParentNode.appendChild(statusElement);
 
         try{
             this.jdbc.getConnection().setAutoCommit(false);
@@ -435,7 +432,6 @@ class RequestXMLParser {
             Element element = this.responseXml.createElement("canceled");
             element.setAttribute("shares", Double.toString(stockOrder.getAmount()));
             element.setAttribute("time", stockOrder.getIssueTime().toString());
-            // statusElement.appendChild(element);
             responseParentNode.appendChild(element);
 
         }
@@ -445,7 +441,6 @@ class RequestXMLParser {
             Element responseElement = this.responseXml.createElement("error");
             responseElement.setAttribute("id", Integer.toString(orderId));
             responseElement.appendChild(this.responseXml.createTextNode(e.toString()));
-            // statusElement.appendChild(responseElement);
             responseParentNode.appendChild(responseElement);
         }
     }
