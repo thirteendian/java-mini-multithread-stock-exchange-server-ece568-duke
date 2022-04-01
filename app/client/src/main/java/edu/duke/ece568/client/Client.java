@@ -49,9 +49,9 @@ public class Client{
 
     public static void main(String[] args) {
         ArrayList<Thread> threadPool = new ArrayList<>();
-        for(int i = 0; i < 5; i++){
+        for(int i = 0; i < 50; i++){
             try {
-                Client client = new Client("127.0.0.1");
+                Client client = new Client("vcm-26330.vm.duke.edu");
                 ClientRunnable clientRunnable = new ClientRunnable(client.socket);
                 Thread t = new Thread(clientRunnable);
                 threadPool.add(t);

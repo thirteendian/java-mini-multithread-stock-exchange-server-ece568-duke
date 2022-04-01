@@ -51,7 +51,7 @@ public class ClientRunnable implements Runnable {
                 this.sendMsg(request);
                 String response = this.recvMsg();
 
-                // System.out.println(response);
+                System.out.println(response);
             }
             catch(Exception e){
                 e.printStackTrace();
