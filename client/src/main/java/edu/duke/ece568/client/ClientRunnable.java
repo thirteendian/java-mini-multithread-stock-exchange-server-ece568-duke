@@ -49,9 +49,9 @@ public class ClientRunnable implements Runnable {
                     "</create>";
 
                 this.sendMsg(request);
-                // this.recvMsg();
+                String response = this.recvMsg();
 
-                System.out.println(this.recvMsg());
+                // System.out.println(response);
             }
             catch(Exception e){
                 e.printStackTrace();

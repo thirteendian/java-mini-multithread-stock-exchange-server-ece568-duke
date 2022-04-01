@@ -203,6 +203,14 @@ class RequestXMLParser {
                 responseElement.setAttribute("id", Integer.toString(accountNumber));
                 responseParentNode.appendChild(responseElement);
             }
+            catch(NumberFormatException e){
+                // generate message
+                Element responseElement = this.responseXml.createElement("error");
+                responseElement.setAttribute("sym", symbol);
+                responseElement.setAttribute("id", element.getAttribute("id"));
+                responseElement.appendChild(this.responseXml.createTextNode(e.toString()));
+                responseParentNode.appendChild(responseElement);
+            }
             catch(Exception e){
                 this.jdbc.getConnection().rollback();
 

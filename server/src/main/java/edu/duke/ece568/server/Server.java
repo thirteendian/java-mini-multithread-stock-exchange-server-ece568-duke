@@ -4,15 +4,9 @@ import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.sql.SQLException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-
-import javax.xml.bind.JAXBElement;
-
 
 class Server {
     private final ServerSocket serversocket;
-    private ExecutorService service;
     public final static int THREAD_COUNT = 32;
     public final static int PORT_NUM = 12345;
 
@@ -23,7 +17,6 @@ class Server {
      */
     public Server() throws IOException {
         this.serversocket = new ServerSocket(PORT_NUM);
-        this.service = Executors.newFixedThreadPool(THREAD_COUNT);
     }
 
     /**
