@@ -27,9 +27,10 @@ class Server {
         this.service = Executors.newFixedThreadPool(THREAD_COUNT);
 
         this.connectionPool = new PGConnectionPoolDataSource();
-        this.connectionPool.setUrl("jdbc:postgresql://localhost:5432/ece568_hw4");
+        // this.connectionPool.setUrl("jdbc:postgresql://localhost:5432/ece568_hw4");
+        this.connectionPool.setUrl("jdbc:postgresql://db:5432/postgres");
         this.connectionPool.setUser("postgres");
-        this.connectionPool.setPassword("passw0rd");
+        this.connectionPool.setPassword("postgres");
     }
 
     /**
