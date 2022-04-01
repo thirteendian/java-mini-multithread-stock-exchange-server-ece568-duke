@@ -34,6 +34,19 @@ class RequestXMLParser {
         this.responseXml = null;
     }
 
+    protected void senitizeInput() throws Exception{
+        // remove all new lines
+        this.originalRequest = this.originalRequest.replaceAll("\r\n", "");
+        this.originalRequest = this.originalRequest.replaceAll("\n", "");
+
+        // remove length indicator before xml
+        int locationFirstTag = this.originalRequest.indexOf("<");
+        if(locationFirstTag == -1){
+            throw new Exception("malformed XML");
+        }
+        this.originalRequest = this.originalRequest.substring(locationFirstTag);
+    }
+
     protected void printXml(Document doc) throws TransformerException{
         TransformerFactory transformerFactory = TransformerFactory.newInstance();
         transformerFactory.setAttribute("indent-number", 2);
@@ -69,6 +82,8 @@ class RequestXMLParser {
         SQLException, TransformerException{
 
         try{
+            this.senitizeInput();
+
             DocumentBuilderFactory documentBuilderFactory = DocumentBuilderFactory.newInstance();
             documentBuilderFactory.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
 
@@ -388,22 +403,31 @@ class RequestXMLParser {
             return;
         }
 
+        int orderId = Integer.parseInt(cancelNode.getAttribute("id"));
+        Element statusElement = this.responseXml.createElement("canceled");
+        statusElement.setAttribute("id", Integer.toString(orderId));
+        responseParentNode.appendChild(statusElement);
+        responseParentNode = statusElement;
+
         // perform cancellation
-        this.performCancelOrder(cancelNode, responseParentNode);
+        this.performCancelOrder(cancelNode, responseParentNode, accountNumber);
 
         // query cancelled but executed
         this.parseCancelExecuted(cancelNode, responseParentNode);
     }
 
-    protected void performCancelOrder(Element cancelNode, Element responseParentNode) throws SQLException{
+    protected void performCancelOrder(Element cancelNode, Element responseParentNode, int accountNumber) throws SQLException{
         int orderId = Integer.parseInt(cancelNode.getAttribute("id"));
-        Element statusElement = this.responseXml.createElement("canceled");
-        statusElement.setAttribute("id", Integer.toString(orderId));
-        responseParentNode.appendChild(statusElement);
+        // Element statusElement = this.responseXml.createElement("canceled");
+        // statusElement.setAttribute("id", Integer.toString(orderId));
+        // responseParentNode.appendChild(statusElement);
 
         try{
             this.jdbc.getConnection().setAutoCommit(false);
             StockOrder stockOrder = new StockOrder(jdbc, orderId);
+            if(stockOrder.getAccountNumber() != accountNumber){
+                throw new Exception("cannot cancel order if the account number is not the order owner");
+            }
             stockOrder.cancelOrder();
             this.jdbc.getConnection().commit();
 
@@ -411,7 +435,9 @@ class RequestXMLParser {
             Element element = this.responseXml.createElement("canceled");
             element.setAttribute("shares", Double.toString(stockOrder.getAmount()));
             element.setAttribute("time", stockOrder.getIssueTime().toString());
-            statusElement.appendChild(element);
+            // statusElement.appendChild(element);
+            responseParentNode.appendChild(element);
+
         }
         catch(Exception e){
             this.jdbc.getConnection().rollback();
@@ -419,7 +445,8 @@ class RequestXMLParser {
             Element responseElement = this.responseXml.createElement("error");
             responseElement.setAttribute("id", Integer.toString(orderId));
             responseElement.appendChild(this.responseXml.createTextNode(e.toString()));
-            statusElement.appendChild(responseElement);
+            // statusElement.appendChild(responseElement);
+            responseParentNode.appendChild(responseElement);
         }
     }
 

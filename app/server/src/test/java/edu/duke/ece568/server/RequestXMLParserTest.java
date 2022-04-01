@@ -49,9 +49,7 @@ public class RequestXMLParserTest {
 
         String request = "asdf";
         String expected = 
-            "<error>" + 
-                "org.xml.sax.SAXParseException; lineNumber: 1; columnNumber: 1; Content is not allowed in prolog." + 
-            "</error>";
+            "<error>java.lang.Exception: malformed XML</error>";
 
         this.helper_responseComparator(request, expected);
     }
@@ -330,15 +328,16 @@ public class RequestXMLParserTest {
         SAXException, IOException, ClassNotFoundException, SQLException, TransformerException{
 
         String request = 
-        "<?xml version=\"1.0\" encoding=\"ISO-8859-1\"?>" +   
+        "12314" + 
+        "<?xml version=\"1.0\" encoding=\"ISO-8859-1\"?>\n" +   
         "<create>" + 
-            "<account id=\"123456\" balance=\"1000\"/>" +
+            "<account id=\"123456\" balance=\"1000\"/>\r\n" +
             "<account id=\"123456\" balance=\"1000\"/>" + // error
             "<account id=\"23456\" balance=\"2000\"/>" +
-            "<account id=\"23x56\" balance=\"2000\"/>" +
+            "<account id=\"23x56\" balance=\"2000\"/>\n" +
             "<symbol sym=\"SPY\">" + 
                 "<account id=\"123456\">100000</account>" + 
-                "<account id=\"34556\">100000</account>" + // error
+                "<account id=\"34556\">100000</account>\r\n" + // error
                 "<account id=\"34e56\">100000</account>" + // error
             "</symbol>" + 
             "<account id=\"34567\" balance=\"2000\"/>" +
@@ -597,9 +596,9 @@ public class RequestXMLParserTest {
             "<results>" + 
                 "<canceled id=\"" + buyOrder.getOrderId() + "\">" + 
                     "<canceled shares=\"2.0\" />" + 
+                    "<executed price=\"5.0\" shares=\"5.0\" />" + 
+                    "<executed price=\"5.0\" shares=\"3.0\" />" + 
                 "</canceled>" + 
-                "<executed price=\"5.0\" shares=\"5.0\" />" + 
-                "<executed price=\"5.0\" shares=\"3.0\" />" + 
                 "<status id=\"" + buyOrder.getOrderId() + "\">" + 
                     "<canceled shares=\"2.0\" />" + 
                     "<executed price=\"5.0\" shares=\"5.0\" />" + 
@@ -662,5 +661,37 @@ public class RequestXMLParserTest {
             "</results>";
 
         this.helper_responseComparator(request, expected);
+    }
+
+    @Test
+    public void test_parseAndProcessRequest_cancelOthersOrder() throws ParserConfigurationException, SAXException, 
+        IOException, ClassNotFoundException, SQLException, InvalidAlgorithmParameterException, TransformerException{
+    
+        PostgreJDBC jdbc = Shared.helper_generateValidJdbc();
+        Shared.cleanAllTables(jdbc);
+
+        Account account = new Account(jdbc, 0, 100);
+        account.commitToDb();
+
+        Position position = new Position(jdbc, 0, "AMAZ", 10);
+        position.commitToDb();
+
+        StockOrder order = new StockOrder(jdbc, 0, "AMAZ", -5, 100);
+        order.commitToDb();
+
+        String request = 
+            "<transactions id=\"1\">" + 
+                "<cancel id=\"" + order.getOrderId() + "\"/>" + 
+            "</transactions>";
+
+        String expected = 
+            "<results>" + 
+                "<canceled id=\"" + order.getOrderId() + "\">" + 
+                    "<error id=\"" + order.getOrderId()  + "\">" + 
+                        "java.lang.Exception: cannot cancel order if the account number is not the order owner" + 
+                    "</error>" + 
+                "</canceled>" + 
+            "</results>";
+        this.helper_responseComparatorWithoutCleaning(request, expected);        
     }
 }
