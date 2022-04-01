@@ -278,11 +278,13 @@ public class StockOrder {
         while(matchedOrder != null){
 
             Account sellerAccount = new Account(this.jdbc, matchedOrder.accountNumber);
+            Account buyerAccount = new Account(this.jdbc, this.accountNumber);
 
             if(this.amount > Math.abs(matchedOrder.amount)){
                 double tradePrice = Math.abs(matchedOrder.amount * matchedOrder.limitPrice);
 
                 sellerAccount.tryAddOrRemoveFromBalance(tradePrice);
+                buyerAccount.tryAddOrRemoveFromBalance(Math.abs((this.limitPrice - matchedOrder.limitPrice) * matchedOrder.amount));
                 Position position = new Position(this.jdbc, this.accountNumber, this.symbol, Math.abs(matchedOrder.amount));
                 position.commitToDb();
 
@@ -295,6 +297,7 @@ public class StockOrder {
                 double tradePrice = Math.abs(matchedOrder.amount * matchedOrder.limitPrice);
 
                 sellerAccount.tryAddOrRemoveFromBalance(tradePrice);
+                buyerAccount.tryAddOrRemoveFromBalance(Math.abs((this.limitPrice - matchedOrder.limitPrice) * matchedOrder.amount));
                 Position position = new Position(this.jdbc, this.accountNumber, this.symbol, Math.abs(matchedOrder.amount));
                 position.commitToDb();
 
@@ -307,6 +310,7 @@ public class StockOrder {
                 double tradePrice = Math.abs(this.amount * matchedOrder.limitPrice);
 
                 sellerAccount.tryAddOrRemoveFromBalance(tradePrice);
+                buyerAccount.tryAddOrRemoveFromBalance(Math.abs((this.limitPrice - matchedOrder.limitPrice) * this.amount));
                 Position position = new Position(this.jdbc, this.accountNumber, this.symbol, Math.abs(this.amount));
                 position.commitToDb();
 
