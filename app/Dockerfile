@@ -8,7 +8,7 @@ ADD . /app
 WORKDIR /app
 
 RUN chmod +x scripts/runserver.sh
-RUN gradle clean
+# RUN gradle clean
 RUN gradle resolveDependencies
 RUN gradle assemble
 

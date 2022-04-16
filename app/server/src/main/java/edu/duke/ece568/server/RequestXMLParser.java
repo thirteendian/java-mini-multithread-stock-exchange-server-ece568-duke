@@ -36,6 +36,7 @@ class RequestXMLParser {
 
     protected void senitizeInput() throws Exception{
         // remove all new lines
+        this.originalRequest = this.originalRequest.replaceAll(">[\\s\r\n]*<", "><");
         this.originalRequest = this.originalRequest.replaceAll("\r\n", "");
         this.originalRequest = this.originalRequest.replaceAll("\n", "");
 
@@ -45,6 +46,7 @@ class RequestXMLParser {
             throw new Exception("malformed XML");
         }
         this.originalRequest = this.originalRequest.substring(locationFirstTag);
+        System.out.println(originalRequest);
     }
 
     protected void printXml(Document doc) throws TransformerException{
@@ -112,7 +114,8 @@ class RequestXMLParser {
             return this.getResponse();
         }
         catch(Exception e){
-            return "<error>" + e.toString() + "</error>";
+            // return "<error>" + e.toString() + "</error>";
+            return "<results><error>" + e.toString() + "</error></results>";
         }
     }
 

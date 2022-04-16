@@ -42,6 +42,8 @@ public class ServerRunnable implements Runnable {
                 String request = recvMsg();
                 RequestXMLParser parser = new RequestXMLParser(jdbc, request);
                 String response = parser.parseAndProcessRequest();
+
+                System.out.println(response);
                 sendMsg(response);
 
                 jdbc.getConnection().close();
