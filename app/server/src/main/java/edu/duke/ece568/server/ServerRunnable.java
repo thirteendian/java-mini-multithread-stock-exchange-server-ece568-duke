@@ -21,7 +21,14 @@ public class ServerRunnable implements Runnable {
     public String recvMsg() throws IOException {
         InputStream in = clientSocket.getInputStream();
         var reader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
-        return reader.readLine();
+        reader.readLine();//length number
+        StringBuilder stringBuilder = new StringBuilder(new String());
+        int c;
+        while((c = reader.read())!=-1){
+            stringBuilder.append((char) c);
+            if(String.valueOf(stringBuilder).contains("</create>")|| String.valueOf(stringBuilder).contains("</transactions>")) break;
+        }
+        return String.valueOf(stringBuilder);
     }
 
     @Override
